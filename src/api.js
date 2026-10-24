@@ -23,6 +23,7 @@ export const api = {
   parseEmail: (rawEmail) => request("/inbox/parse", { method: "POST", body: { rawEmail } }),
   reply: (id, intent) => request(`/deals/${encodeURIComponent(id)}/reply`, { method: "POST", body: { intent } }),
   content: () => request("/content"),
+  reelScript: (brief) => request("/content/reel-script", { method: "POST", body: brief }),
   today: () => request("/today"),
   samples: () => request("/samples"),
   assistant: (question, page) => request("/assistant", { method: "POST", body: { question, page } }),

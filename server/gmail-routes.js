@@ -12,6 +12,8 @@ import {
 const APP_CALLBACKS = new Set([
   "/api/health", "/api/gmail/status", "/api/gmail/connect", "/api/gmail/callback",
   "/api/gmail/webhook", "/api/gmail/renew",
+  // These endpoints expose setup status or validate their own provider signature.
+  "/api/voice/status", "/api/voice/incoming", "/api/voice/turn", "/api/voice/transfer-result",
 ]);
 
 let storeInstance;
@@ -81,9 +83,9 @@ export function registerGmailRoutes(app, { env = process.env } = {}) {
   const config = gmailConfig(env);
 
   app.use("/api/*", async (c, next) => {
-    if (!c.req.path.startsWith("/api/gmail/") || !gmailAuthRequired(env) || APP_CALLBACKS.has(c.req.path)) return next();
+    if (!gmailAuthRequired(env) || APP_CALLBACKS.has(c.req.path)) return next();
     if (!configReadyForRuntime(env, config)) {
-      return c.json({ error: "Gmail sign-in is not configured for this deployment." }, 503);
+      return c.json({ error: "Creator workspace sign-in is not configured for this deployment." }, 503);
     }
     const session = sessionFromRequest(c.req.raw, config);
     if (!session || session.email !== config.allowedEmail) return c.json({ error: "Connect the approved Gmail account to continue." }, 401);

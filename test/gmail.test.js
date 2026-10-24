@@ -120,18 +120,45 @@ test("connecting a mailbox starts its watch before syncing and advances history"
   assert.equal(account.savedMessages?.length || 0, 0);
 });
 
-test("production Gmail auth fails closed until configuration is complete", async () => {
+test("production workspace auth fails closed until configuration is complete", async () => {
   assert.equal(gmailAuthRequired({ NODE_ENV: "production" }), true);
   const app = new Hono();
   registerGmailRoutes(app, { env: { NODE_ENV: "production", DATABASE_PROVIDER: "file" } });
   app.get("/api/creator", (c) => c.json({ name: "CollabDesk creator" }));
+  app.get("/api/deals", (c) => c.json({ deals: [] }));
   const status = await app.request("/api/gmail/status");
   assert.equal(status.status, 200);
   assert.equal((await status.json()).configured, false);
   const workspace = await app.request("/api/creator");
-  assert.equal(workspace.status, 200);
+  assert.equal(workspace.status, 503);
+  assert.match((await workspace.json()).error, /sign-in is not configured/);
+  assert.equal((await app.request("/api/deals")).status, 503);
   const messages = await app.request("/api/gmail/messages");
   assert.equal(messages.status, 503);
+});
+
+test("production workspace APIs require the approved creator session when configured", async () => {
+  const secret = randomBytes(48).toString("base64url");
+  const env = {
+    NODE_ENV: "production", DATABASE_PROVIDER: "supabase", SUPABASE_URL: "https://project.supabase.co",
+    SUPABASE_SECRET_KEY: "server-only", GOOGLE_CLIENT_ID: "client-id", GOOGLE_CLIENT_SECRET: "client-secret",
+    GOOGLE_REDIRECT_URI: "https://collabdesk.example/api/gmail/callback", GMAIL_ALLOWED_EMAIL: "creator@example.com",
+    GMAIL_SESSION_SECRET: secret, GMAIL_TOKEN_ENCRYPTION_KEY: encryptionKey,
+    GMAIL_PUBSUB_TOPIC: "projects/project/topics/gmail", PUBSUB_PUSH_OIDC_AUDIENCE: "https://collabdesk.example/api/gmail/webhook",
+    PUBSUB_PUSH_SERVICE_ACCOUNT: "push@project.iam.gserviceaccount.com", GMAIL_CRON_SECRET: "cron-secret",
+    APP_ORIGIN: "https://collabdesk.example",
+  };
+  const app = new Hono();
+  registerGmailRoutes(app, { env });
+  app.get("/api/creator", (c) => c.json({ name: "Aanya" }));
+  const unauthenticated = await app.request("/api/creator");
+  assert.equal(unauthenticated.status, 401);
+  const session = createSessionCookieValue({ sub: "google-sub", email: "creator@example.com" }, secret);
+  const authorized = await app.request("/api/creator", { headers: { Cookie: `collabdesk_session=${session}` } });
+  assert.equal(authorized.status, 200);
+  assert.deepEqual(await authorized.json(), { name: "Aanya" });
+  const otherCreator = createSessionCookieValue({ sub: "other-sub", email: "other@example.com" }, secret);
+  assert.equal((await app.request("/api/creator", { headers: { Cookie: `collabdesk_session=${otherCreator}` } })).status, 401);
 });
 
 test("Gmail message storage scopes queries by account and separates summaries from bodies", async () => {

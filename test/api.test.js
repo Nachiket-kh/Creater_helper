@@ -88,6 +88,24 @@ test("reply drafting, rates, content insights, and daily actions work", async ()
   assert.equal((await json("/api/deals/d-seed-bakery/reply", "POST", { intent: "send" })).response.status, 400);
 });
 
+test("reel script starter supports all advertised durations with contiguous scene timings", async () => {
+  for (const duration of [15, 30, 45, 60]) {
+    const result = await json("/api/content/reel-script", "POST", { topic: "Cafe breakfast", duration, goal: "saves" });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.payload.source, "starter");
+    assert.equal(result.payload.hooks.length, 3);
+    assert.equal(result.payload.scenes.length, 4);
+    const intervals = result.payload.scenes.map(({ seconds }) => seconds.match(/^(\d+)–(\d+)s$/).slice(1).map(Number));
+    assert.equal(intervals[0][0], 0);
+    assert.equal(intervals.at(-1)[1], duration);
+    for (let index = 0; index < intervals.length; index += 1) {
+      assert.ok(intervals[index][1] > intervals[index][0]);
+      if (index > 0) assert.equal(intervals[index][0], intervals[index - 1][1]);
+    }
+  }
+  assert.equal((await json("/api/content/reel-script", "POST", { topic: "x", duration: 10 })).response.status, 400);
+});
+
 test("desk assistant answers with grounded workspace data and validates questions", async () => {
   const response = await app.request("/api/assistant", {
     method: "POST",
