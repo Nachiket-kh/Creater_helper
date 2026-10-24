@@ -7,12 +7,13 @@ import DealDetail from './pages/DealDetail.jsx';
 import Content from './pages/Content.jsx';
 import Kit from './pages/Kit.jsx';
 import UIKitPage from './pages/UIKitPage.jsx';
+import Voice from './pages/Voice.jsx';
 
 const todayStamp = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long', month: 'short', day: '2-digit' }).format(new Date()).toUpperCase();
-const nav = [['/', 'Today', '◷'], ['/inbox', 'Inbox', '↙'], ['/deals', 'Deals', '▤'], ['/content', 'Content', '▧'], ['/kit', 'Media kit', '✳'], ['/ui-kit', 'UI kit', '◇']];
+const nav = [['/', 'Today', '◷'], ['/inbox', 'Inbox', '↙'], ['/deals', 'Deals', '▤'], ['/content', 'Content', '▧'], ['/kit', 'Media kit', '✳'], ['/voice', 'Voice assistant', '☎'], ['/ui-kit', 'UI kit', '◇']];
 function routeFromPath(path) {
   if (path.startsWith('/deals/')) return { page: 'deal', id: decodeURIComponent(path.slice('/deals/'.length)) };
-  return { page: ({ '/inbox': 'inbox', '/deals': 'deals', '/content': 'content', '/kit': 'kit', '/ui-kit': 'ui-kit' })[path] || 'today' };
+  return { page: ({ '/inbox': 'inbox', '/deals': 'deals', '/content': 'content', '/kit': 'kit', '/voice': 'voice', '/ui-kit': 'ui-kit' })[path] || 'today' };
 }
 export default function App() {
   const [route, setRoute] = useState(() => routeFromPath(location.pathname));
@@ -41,6 +42,7 @@ export default function App() {
         {route.page === 'deal' && <DealDetail id={route.id} go={go} />}
         {route.page === 'content' && <Content />}
         {route.page === 'kit' && <Kit onCreator={setCreator} />}
+        {route.page === 'voice' && <Voice />}
       </div>
     </main>
   </div>;

@@ -25,6 +25,21 @@ Import the repository root as a Vite project. `vercel.json` sets the install and
 
 The JSON file remains the local demo store. Vercel functions cannot persist writes to the deployment filesystem, so deployed edits are best-effort in function memory and may reset after a cold start. Add a persistent store before using this with real creator data or relying on saved changes across deployments.
 
+## AI voice assistant
+
+Open `/voice` for the call-agent setup and connection status. The Twilio voice webhook is `/api/voice/incoming`; configure it on the Twilio phone number as an HTTP POST URL. The assistant uses Twilio speech recognition and speech output, and maintains short encrypted conversation context during a call. It can hand callers to a human when they ask.
+
+Set these values in Vercel Project Settings → Environment Variables, then redeploy:
+
+- `TWILIO_AUTH_TOKEN`: the Twilio Auth Token, used to validate signed webhook requests.
+- `VOICE_TRANSFER_NUMBER`: the human handoff number in E.164 format, such as `+1...`.
+- `VOICE_WEBHOOK_BASE_URL`: the canonical HTTPS origin for the deployment, such as `https://your-app.vercel.app` (no path).
+- `OLLAMA_CHAT_URL`: optional public Ollama-compatible `/api/chat` endpoint for AI-generated conversation turns. A local `localhost` URL is unreachable from Vercel; without a public model endpoint, the call assistant uses its built-in fallback responses.
+- `OLLAMA_MODEL`: optional model name; defaults to `qwen3.5:4b`.
+- `VOICE_SESSION_SECRET`: optional private secret for encrypting temporary call context; defaults to a key derived from `TWILIO_AUTH_TOKEN`.
+
+Keep all credentials in Vercel settings, never in GitHub. The assistant does not record calls or perform actions in external accounts.
+
 ## UI component library
 
 Open `/ui-kit` to browse the component showcase. Reusable React primitives are exported from `src/components/ui/index.jsx`: `Button`, `Card` and its header/content/footer parts, `Label`, `Input`, `Textarea`, `Badge`, and `Avatar`. Their styles and design tokens are scoped to `.ui-kit` in `src/components/ui/ui.css`, so they do not change the CollabDesk desk screens.

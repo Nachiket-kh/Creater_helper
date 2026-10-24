@@ -6,9 +6,10 @@ import { quote, insight, todayActions } from './rate.js';
 import { askJSON } from './llm.js';
 import { parsePrompt, replyPrompt } from './prompts.js';
 import { samples } from './samples.js';
+import { incomingCallTwiml, isValidTwilioRequest, parseVoiceForm, sessionFromQuery, transferResultTwiml, voiceConfiguration, voiceTurnTwiml } from './voice.js';
 
 const app = new Hono();
-app.use('/api/*', cors({ origin: 'http://localhost:5173', allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+app.use('/api/*', cors({ origin: ['http://localhost:5173', 'https://creater-helper.vercel.app'], allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'], allowHeaders: ['Content-Type', 'X-Twilio-Signature'] }));
 app.onError((error, c) => c.json({ error: error.message || 'Internal server error' }, 500));
 const statuses = ['new', 'negotiating', 'confirmed', 'posted', 'paid'];
 const intents = ['paid_collab', 'gifted', 'spam', 'follow_up'];
@@ -24,6 +25,24 @@ const fallbackParse = (rawEmail) => {
 const findDeal = async (id) => { const db = await readDB(); return { db, deal: db.deals.find((item) => item.id === id) }; };
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+app.get('/api/voice/status', (c) => c.json(voiceConfiguration()));
+app.post('/api/voice/incoming', async (c) => {
+  const body = parseVoiceForm(await c.req.parseBody());
+  if (!isValidTwilioRequest(c.req.raw, body)) return c.text('Invalid or missing Twilio signature.', 403);
+  return c.body(incomingCallTwiml(c.req.url), 200, { 'Content-Type': 'text/xml; charset=utf-8', 'Cache-Control': 'no-store' });
+});
+app.post('/api/voice/turn', async (c) => {
+  const body = parseVoiceForm(await c.req.parseBody());
+  if (!isValidTwilioRequest(c.req.raw, body)) return c.text('Invalid or missing Twilio signature.', 403);
+  const session = sessionFromQuery(c.req.url);
+  if (!session) return c.text('Voice session expired. Please call again.', 410);
+  return c.body(await voiceTurnTwiml(c.req.url, body, session), 200, { 'Content-Type': 'text/xml; charset=utf-8', 'Cache-Control': 'no-store' });
+});
+app.post('/api/voice/transfer-result', async (c) => {
+  const body = parseVoiceForm(await c.req.parseBody());
+  if (!isValidTwilioRequest(c.req.raw, body)) return c.text('Invalid or missing Twilio signature.', 403);
+  return c.body(transferResultTwiml(String(body.DialCallStatus || 'failed')), 200, { 'Content-Type': 'text/xml; charset=utf-8', 'Cache-Control': 'no-store' });
+});
 app.get('/api/creator', async (c) => c.json((await readDB()).creator));
 app.put('/api/creator', async (c) => {
   const body = await c.req.json().catch(() => null);

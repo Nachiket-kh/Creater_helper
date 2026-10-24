@@ -2,10 +2,11 @@ const chatUrl = process.env.OLLAMA_CHAT_URL || 'http://localhost:11434/api/chat'
 const model = process.env.OLLAMA_MODEL || 'qwen3.5:4b';
 const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) > 0 ? Number(process.env.OLLAMA_TIMEOUT_MS) : 60000;
 
-export async function askJSON(prompt) {
+export async function askJSON(prompt, options = {}) {
   if (process.env.VERCEL && !process.env.OLLAMA_CHAT_URL) throw new Error('Ollama is only available in the local demo.');
+  const requestTimeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : timeoutMs;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
     const response = await fetch(chatUrl, {
       method: 'POST',
