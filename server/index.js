@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { browserVoiceReply, getVoiceReply, incomingCallTwiml, isValidTwilioRequest, parseVoiceForm, sessionFromQuery, transferResultTwiml, voiceConfiguration, voiceTurnTwiml } from "./voice.js";
+import { browserVoiceReply, incomingCallTwiml, isValidTwilioRequest, parseVoiceForm, sessionFromQuery, transferResultTwiml, voiceConfiguration, voiceTurnTwiml } from "./voice.js";
 import { readStore, updateStore } from "./store.js";
 import { quote, insight, todayActions } from "./rate.js";
 import { askJSON, isAIConfigured } from "./llm.js";
@@ -340,7 +340,40 @@ app.post("/api/content/reel-script", async (c) => {
   let source = "starter";
   try {
     const generated = await askJSON(prompt, { timeoutMs: 18_000 });
-    if (Array.isArray(generated?.hooks) && generated.hooks.length === 3 && generated.hooks.every((item) => typeof item === "string" =�{h��춻�q�^w" ? "Your pick? ↓" : goal === "reach" ? "Send this to a friend ↗" : `Meet ${subjectName}`;
+    if (Array.isArray(generated?.hooks) && generated.hooks.length === 3 && generated.hooks.every((item) => typeof item === "string" && item.trim().length > 0 && item.length <= 120)
+      && Array.isArray(generated?.scenes) && generated.scenes.length >= 3 && generated.scenes.length <= 6
+      && generated.scenes.every((scene) => scene && ["seconds", "visual", "voiceover", "text"].every((key) => typeof scene[key] === "string" && scene[key].length <= 500))
+      && ["caption", "cta", "rationale"].every((key) => typeof generated[key] === "string" && generated[key].length <= 1200)) {
+      result = generated;
+      source = "ai";
+    }
+  } catch {
+    // The data-informed starter below remains available when no provider is configured.
+  }
+  if (!result) {
+    const subject = brand ? `${brand} — ${topic}` : topic;
+    const beatOne = Math.round(duration * 0.2);
+    const beatTwo = Math.round(duration * 0.5);
+    const beatThree = Math.round(duration * 0.75);
+    const proof = topPost ? `Your ${topPost.topic} ${topPost.type || "post"} “${topPost.title}” earned ${Number(topPost.saves).toLocaleString("en-IN")} saves, so this version opens with a useful, specific detail.` : "Lead with one useful, specific detail before the reveal.";
+    const subjectName = brand || topic;
+    const hooksByGoal = {
+      saves: [`Save this for your next ${topic.toLowerCase()} day.`, `A ${creator.city || "Pune"} ${topic.toLowerCase()} worth making time for`, `Here’s the one thing I’d know before trying ${topic.toLowerCase()}`],
+      reach: [`Wait for the reveal at ${topic}…`, `A closer look at ${topic} in ${creator.city || "Pune"}`, `Here’s why ${topic} caught my eye`],
+      comments: [`Would you try ${topic}?`, `${topic}: yes or no?`, `Pick one thing you’d order at ${topic}`],
+      "brand awareness": [`Meet ${subjectName}, in the details.`, `A closer look at ${subjectName}`, `Here’s what stood out about ${subjectName}`],
+    };
+    const hooks = voice === "Playful Hinglish" && goal === "saves"
+      ? [`Pune mein ${topic}? Yeh idea save kar lo.`, `Okay, ${topic} ka honest review suno.`, `Mera favourite detail about ${topic}…`]
+      : voice === "Minimal and aesthetic" && goal === "saves"
+        ? [`A slower look at ${topic}.`, `${topic}, in the details.`, `The small detail that made this one.`]
+        : hooksByGoal[goal];
+    const openingLine = voice === "Playful Hinglish" ? `Agar ${topic} list mein hai, start yahin se.` : voice === "Minimal and aesthetic" ? `A closer look at ${topic}.` : `If ${topic.toLowerCase()} is on your list, start here.`;
+    const cta = goal === "comments" ? `Would you try ${topic}? Tell me why in the comments.`
+      : goal === "reach" ? `Share this with someone who'd love ${topic}.`
+        : goal === "brand awareness" ? `Take a closer look at ${subjectName} and tell me what stands out.`
+          : "Save this for later and tell me what I should try next.";
+    const firstOverlay = goal === "saves" ? "Save this idea ✨" : goal === "comments" ? "Your pick? ↓" : goal === "reach" ? "Send this to a friend ↗" : `Meet ${subjectName}`;
     const finalOverlay = goal === "comments" ? "Would you try it? ↓" : goal === "reach" ? "Share with a friend ↗" : goal === "brand awareness" ? `Discover ${subjectName}` : "Save · Share · Tell me below";
     result = {
       hooks,

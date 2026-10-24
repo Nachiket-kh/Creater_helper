@@ -14,13 +14,18 @@ async function request(path, options = {}) {
   return data;
 }
 
+export const money = (value) => value == null ? "No fee" : `₹${Number(value).toLocaleString("en-IN")}`;
+export const titleCase = (value) => String(value ?? "").replace(/[_-]+/g, " ").replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+
 export const api = {
   creator: () => request("/creator"),
   saveCreator: (creator) => request("/creator", { method: "PUT", body: creator }),
   deals: () => request("/deals"),
   deal: (id) => request(`/deals/${encodeURIComponent(id)}`),
   setDealStatus: (id, status) => request(`/deals/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } }),
+  updateDeal: (id, status) => request(`/deals/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } }),
   parseEmail: (rawEmail) => request("/inbox/parse", { method: "POST", body: { rawEmail } }),
+  parse: (rawEmail) => request("/inbox/parse", { method: "POST", body: { rawEmail } }),
   reply: (id, intent) => request(`/deals/${encodeURIComponent(id)}/reply`, { method: "POST", body: { intent } }),
   content: () => request("/content"),
   reelScript: (brief) => request("/content/reel-script", { method: "POST", body: brief }),
