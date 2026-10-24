@@ -1,16 +1,34 @@
-const base = '/api';
 async function request(path, options = {}) {
-  const response = await fetch(`${base}${path}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  let response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error("Could not reach CollabDesk. Make sure the API server is running.");
+  }
+  const data = response.status === 204 ? null : await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status}).`);
   return data;
 }
+
 export const api = {
-  creator: () => request('/creator'), saveCreator: (body) => request('/creator', { method: 'PUT', body: JSON.stringify(body) }),
-  deals: () => request('/deals'), deal: (id) => request(`/deals/${id}`), updateDeal: (id, status) => request(`/deals/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  parse: (rawEmail) => request('/inbox/parse', { method: 'POST', body: JSON.stringify({ rawEmail }) }),
-  reply: (id, intent) => request(`/deals/${id}/reply`, { method: 'POST', body: JSON.stringify({ intent }) }),
-  content: () => request('/content'), today: () => request('/today'), samples: () => request('/samples'), voiceStatus: () => request('/voice/status')
+  creator: () => request("/creator"),
+  saveCreator: (creator) => request("/creator", { method: "PUT", body: creator }),
+  deals: () => request("/deals"),
+  deal: (id) => request(`/deals/${encodeURIComponent(id)}`),
+  setDealStatus: (id, status) => request(`/deals/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } }),
+  parseEmail: (rawEmail) => request("/inbox/parse", { method: "POST", body: { rawEmail } }),
+  reply: (id, intent) => request(`/deals/${encodeURIComponent(id)}/reply`, { method: "POST", body: { intent } }),
+  content: () => request("/content"),
+  today: () => request("/today"),
+  samples: () => request("/samples"),
+  assistant: (question, page) => request("/assistant", { method: "POST", body: { question, page } }),
+  gmailStatus: () => request("/gmail/status"),
+  gmailMessages: () => request("/gmail/messages"),
+  gmailMessage: (id) => request(`/gmail/messages/${encodeURIComponent(id)}`),
+  disconnectGmail: () => request("/gmail/disconnect", { method: "POST" }),
+  voiceStatus: () => request("/voice/status"),
 };
-export const money = (value) => value == null ? 'No fee' : `₹${Number(value).toLocaleString('en-IN')}`;
-export const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ');

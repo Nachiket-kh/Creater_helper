@@ -1,49 +1,371 @@
-import React, { useEffect, useState } from 'react';
-import { api } from './api.js';
-import Today from './pages/Today.jsx';
-import Inbox from './pages/Inbox.jsx';
-import Deals from './pages/Deals.jsx';
-import DealDetail from './pages/DealDetail.jsx';
-import Content from './pages/Content.jsx';
-import Kit from './pages/Kit.jsx';
-import UIKitPage from './pages/UIKitPage.jsx';
-import Voice from './pages/Voice.jsx';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api } from "./api.js";
+import { routeFor } from "./router.js";
+import Voice from "./pages/Voice.jsx";
+import UIKitPage from "./pages/UIKitPage.jsx";
 
-const todayStamp = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long', month: 'short', day: '2-digit' }).format(new Date()).toUpperCase();
-const nav = [['/', 'Today', '◷'], ['/inbox', 'Inbox', '↙'], ['/deals', 'Deals', '▤'], ['/content', 'Content', '▧'], ['/kit', 'Media kit', '✳'], ['/voice', 'Voice assistant', '☎'], ['/ui-kit', 'UI kit', '◇']];
-function routeFromPath(path) {
-  if (path.startsWith('/deals/')) return { page: 'deal', id: decodeURIComponent(path.slice('/deals/'.length)) };
-  return { page: ({ '/inbox': 'inbox', '/deals': 'deals', '/content': 'content', '/kit': 'kit', '/voice': 'voice', '/ui-kit': 'ui-kit' })[path] || 'today' };
+const pages = [
+  { id: "today", label: "Today", icon: "◷", href: "/" },
+  { id: "inbox", label: "Inbox", icon: "↙", href: "/inbox" },
+  { id: "deals", label: "Deals", icon: "▤", href: "/deals" },
+  { id: "content", label: "Content", icon: "▦", href: "/content" },
+  { id: "kit", label: "Media kit", icon: "▧", href: "/kit" },
+  { id: "voice", label: "Voice assistant", icon: "☎", href: "/voice" },
+  { id: "ui-kit", label: "UI kit", icon: "◇", href: "/ui-kit" },
+];
+const statuses = ["new", "negotiating", "confirmed", "posted", "paid"];
+const statusLabels = { new: "New", negotiating: "Negotiating", confirmed: "Confirmed", posted: "Posted", paid: "Paid" };
+const money = (value) => value == null ? "No fee" : `₹${Number(value).toLocaleString("en-IN")}`;
+const number = (value) => Number(value || 0).toLocaleString("en-IN");
+
+function Icon({ children, className = "" }) {
+  const name = String(children);
+  const paths = {
+    "◷": <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+    "↙": <><path d="M20 7v7a4 4 0 0 1-4 4H5"/><path d="m11 12-6 6 6 6" transform="translate(0 -1)"/></>,
+    "▤": <><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></>,
+    "▦": <><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></>,
+    "▧": <><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></>,
+    "↗": <><path d="M7 17 17 7M8 7h9v9"/></>,
+    "↘": <><path d="M7 7 17 17M8 17h9V8"/></>,
+    "＋": <><path d="M12 5v14M5 12h14"/></>,
+    "→": <><path d="M5 12h14M13 6l6 6-6 6"/></>,
+    "←": <><path d="M19 12H5m6 6-6-6 6-6"/></>,
+    "↻": <><path d="M20 11a8 8 0 0 0-14-5L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2"/><path d="M20 20v-4h-4"/></>,
+    "✳": <><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4"/></>,
+    "◉": <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></>,
+    "◌": <><circle cx="12" cy="12" r="8" strokeDasharray="4 3"/></>,
+    "!": <><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></>,
+    "✓": <path d="m5 12 4 4L19 6"/>,
+    "×": <path d="m6 6 12 12M18 6 6 18"/>,
+    "?": <><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.8 1c-.8 1-2.4 1.3-2.4 3m0 3h.01"/></>,
+    "⌄": <path d="m7 10 5 5 5-5"/>,
+    "✦": <path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/>,
+  };
+  return <span className={`icon ${className}`} aria-hidden="true">{paths[name] ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg> : children}</span>;
 }
+
+function ErrorMessage({ error }) {
+  return error ? <div className="error-banner" role="alert"><Icon>!</Icon>{error}</div> : null;
+}
+
+function Loading({ label = "Loading your workspace…" }) {
+  return <div className="loading"><span className="spinner" />{label}</div>;
+}
+
+function PageTitle({ eyebrow, title, subtitle, action }) {
+  return <div className="page-title"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}</div>;
+}
+
+function StatusPill({ status }) {
+  return <span className={`status-pill status-${status}`}>{statusLabels[status] || status}</span>;
+}
+
+function DealCard({ deal, onStatus, onOpen, busy }) {
+  const index = statuses.indexOf(deal.status);
+  const previous = index > 0 ? statuses[index - 1] : null;
+  const next = index < statuses.length - 1 ? statuses[index + 1] : null;
+  return <article className="deal-card">
+    <div className="deal-card-top"><StatusPill status={deal.status} />{deal.quote?.lowball && <span className="lowball"><i />Lowball</span>}</div>
+    <button className="brand-link" onClick={() => onOpen(deal.id)}>{deal.brand}<Icon>↗</Icon></button>
+    <div className="deal-meta">{money(deal.budgetInr)} <span>·</span> {deal.format}</div>
+    <p className="deal-summary">{deal.summary}</p>
+    <div className="deal-card-actions">
+      {previous ? <button className="step-button" disabled={busy} onClick={() => onStatus(deal, previous)}>← {statusLabels[previous]}</button> : <span />}
+      {next && <button className="step-button step-next" disabled={busy} onClick={() => onStatus(deal, next)}>{statusLabels[next]} →</button>}
+    </div>
+  </article>;
+}
+
 export default function App() {
-  const [route, setRoute] = useState(() => routeFromPath(location.pathname));
+  const [path, setPath] = useState(window.location.pathname);
   const [creator, setCreator] = useState(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const pop = () => setRoute(routeFromPath(location.pathname)); window.addEventListener('popstate', pop);
-    api.creator().then(setCreator).catch((e) => setError(e.message)); return () => window.removeEventListener('popstate', pop);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const route = useMemo(() => routeFor(path), [path]);
+
+  if (route.page === "ui-kit") return <UIKitPage go={(href) => { window.history.pushState({}, "", href); setPath(window.location.pathname); }} />;
+
+  const navigate = useCallback((href) => {
+    window.history.pushState({}, "", href);
+    setPath(window.location.pathname);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
-  const go = (path) => { history.pushState({}, '', path); setRoute(routeFromPath(path)); setError(''); window.scrollTo(0, 0); };
-  if (route.page === 'ui-kit') return <UIKitPage go={go} />;
-  const pageName = route.page === 'deal' ? 'Deal detail' : nav.find(([path]) => path === location.pathname)?.[1] || 'Today';
+
+  useEffect(() => {
+    const pop = () => setPath(window.location.pathname);
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, []);
+
+  useEffect(() => {
+    api.creator().then((value) => { setCreator(value); setWorkspaceError(""); }).catch((error) => setWorkspaceError(error.message));
+  }, [refresh]);
+
+  const openDeal = (id) => navigate(`/deals/${encodeURIComponent(id)}`);
+  const reload = () => setRefresh((value) => value + 1);
+
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand-lockup"><div className="brand-mark">C</div><div><strong>CollabDesk</strong><span>CREATOR WORKSPACE</span></div></div>
-      <div className="creator-chip"><div className="avatar">AK</div><div><strong>{creator?.name || 'Aanya Kulkarni'}</strong><span>{creator?.handle || '@aanya.eats.pune'}</span></div><span className="online-dot" /></div>
-      <nav className="nav-list">{nav.map(([path, label, icon]) => <a key={path} href={path} onClick={(e) => { e.preventDefault(); go(path); }} className={location.pathname === path ? 'active' : ''}><span className="nav-icon">{icon}</span>{label}{path === '/inbox' && <span className="nav-dot" />}</a>)}</nav>
-      <div className="sidebar-bottom"><div className="offline-indicator"><span />Local demo ready</div><span>Built for the business behind the posts.</span></div>
+      <a href="/" className="brand-mark" onClick={(event) => { event.preventDefault(); navigate("/"); }}><span className="brand-glyph">c</span><span>collab<span className="brand-accent">desk</span></span></a>
+      <div className="creator-mini">
+        <div className="avatar">{creator?.name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "AK"}</div>
+        <div className="creator-mini-copy"><strong>{creator?.name || "Aanya Kulkarni"}</strong><span>{creator?.handle || "@aanya.eats.pune"}</span></div>
+        <span className="online-dot" title="Workspace online" />
+      </div>
+      <div className="nav-label">WORKSPACE</div>
+      <nav className="side-nav" aria-label="Main navigation">
+        {pages.map((item) => <a key={item.id} href={item.href} title={item.label} aria-label={item.label} aria-current={route.page === item.id || (item.id === "deals" && route.page === "detail") ? "page" : undefined} className={`nav-link ${route.page === item.id || (item.id === "deals" && route.page === "detail") ? "active" : ""}`} onClick={(event) => { event.preventDefault(); navigate(item.href); }}><Icon>{item.icon}</Icon><span className="nav-link-label sr-only">{item.label}</span>{item.id === "inbox" && <span className="nav-dot" />}</a>)}
+      </nav>
+      <div className="sidebar-bottom"><div className="sidebar-note"><span className="sparkle">✳</span><div><strong>Your desk, in sync</strong><p>Every deal, detail and decision in one place.</p></div></div><button className="profile-link" onClick={() => navigate("/kit")}><div className="avatar avatar-small">{creator?.name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "AK"}</div><span><strong>{creator?.name || "Aanya Kulkarni"}</strong><small>Creator account</small></span><Icon>⌄</Icon></button></div>
     </aside>
-    <main className="main-area"><header className="topbar"><div className="breadcrumb"><span>WORKSPACE</span><i>/</i><strong>{pageName}</strong></div><div className="topbar-right"><span className="date-stamp">{todayStamp}</span><div className="top-avatar">A</div></div></header>
-      {error && <div className="global-error">{error}</div>}
-      <div className="page-wrap">
-        {route.page === 'today' && <Today go={go} />}
-        {route.page === 'inbox' && <Inbox go={go} />}
-        {route.page === 'deals' && <Deals go={go} />}
-        {route.page === 'deal' && <DealDetail id={route.id} go={go} />}
-        {route.page === 'content' && <Content />}
-        {route.page === 'kit' && <Kit onCreator={setCreator} />}
-        {route.page === 'voice' && <Voice />}
+
+    <main className="main-area">
+      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {route.page === "detail" ? "Deal details" : pages.find((page) => page.id === route.page)?.label || "Not found"}</div><div className="topbar-right"><span className="today-date">{new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span><button className="icon-button" aria-label="Refresh workspace" title="Refresh workspace" onClick={reload}><Icon>↻</Icon></button><div className="top-avatar" aria-label={creator?.name || "Creator account"}>{creator?.name?.slice(0, 1) || "A"}</div></div></header>
+      <div className="page-content"><ErrorMessage error={workspaceError} />
+        {route.page === "today" && <Today key={refresh} onOpen={openDeal} onNavigate={navigate} />}
+        {route.page === "inbox" && <Inbox key={refresh} onOpen={openDeal} />}
+        {route.page === "deals" && <Deals key={refresh} onOpen={openDeal} />}
+        {route.page === "detail" && <DealDetail key={`${route.id}:${refresh}`} id={route.id} onBack={() => navigate("/deals")} onStatusChanged={() => setRefresh((value) => value + 1)} />}
+        {route.page === "content" && <Content key={refresh} />}
+        {route.page === "kit" && <Kit key={refresh} creator={creator} onSaved={(value) => { setCreator(value); setWorkspaceError(""); }} />}
+        {route.page === "voice" && <Voice />}
+        {route.page === "not-found" && <><PageTitle eyebrow="NOT FOUND" title="This page isn’t here." subtitle="The address may be out of date, or the page may have moved." action={<button className="primary-button" onClick={() => navigate("/")}>Back to Today <span>→</span></button>} /></>}
       </div>
     </main>
+    <nav className="mobile-nav" aria-label="Mobile navigation">{pages.map((item) => <a key={item.id} href={item.href} title={item.label} aria-label={item.label} aria-current={route.page === item.id || (item.id === "deals" && route.page === "detail") ? "page" : undefined} className={route.page === item.id || (item.id === "deals" && route.page === "detail") ? "active" : ""} onClick={(event) => { event.preventDefault(); navigate(item.href); }}><Icon>{item.icon}</Icon><span className="sr-only">{item.label}</span></a>)}</nav>
+    <DeskAssistant page={route.page} />
   </div>;
+}
+
+function DeskAssistant({ page }) {
+  const [open, setOpen] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const launcherRef = useRef(null);
+  const inputRef = useRef(null);
+  const suggestions = ["Which offer is below my rate?", "What should I follow up on?", "What content performs best?"];
+  useEffect(() => {
+    if (!open) return undefined;
+    inputRef.current?.focus();
+    const onKeyDown = (event) => { if (event.key === "Escape") { setOpen(false); launcherRef.current?.focus(); } };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+  async function ask(value = question) {
+    const prompt = value.trim();
+    if (!prompt || loading) return;
+    setQuestion(prompt); setError(""); setLoading(true);
+    try { setAnswer(await api.assistant(prompt, page)); }
+    catch (reason) { setError(reason.message); }
+    finally { setLoading(false); }
+  }
+  return <>
+    {open && <section id="desk-assistant-panel" className="assistant-panel" role="dialog" aria-modal="false" aria-labelledby="assistant-title">
+      <div className="assistant-heading"><span className="assistant-mark"><Icon>✳</Icon></span><div><h2 id="assistant-title">Desk assistant</h2><p>Grounded in your saved deals and posts</p></div><button className="assistant-close" aria-label="Close assistant" title="Close assistant" onClick={() => setOpen(false)}><Icon>×</Icon></button></div>
+      <div className="assistant-disclosure">If AI is configured, your question and workspace summary are sent to OpenAI. Otherwise, answers use workspace data only.</div>
+      {!answer && <div className="assistant-suggestions" aria-label="Suggested questions">{suggestions.map((item) => <button key={item} onClick={() => ask(item)} disabled={loading}>{item}</button>)}</div>}
+      {answer && <div className="assistant-answer" aria-live="polite"><div className="assistant-answer-label"><span>{answer.source === "ai" ? "AI suggestion" : "Workspace insight"}</span>{answer.source !== "ai" && <span>Verified data</span>}</div><p>{answer.answer}</p><div className="assistant-suggestions assistant-followups">{(answer.suggestions || suggestions).map((item) => <button key={item} onClick={() => ask(item)} disabled={loading}>{item}</button>)}</div></div>}
+      {error && <div className="assistant-error" role="alert">{error} <button onClick={() => ask()}>Try again</button></div>}
+      {loading && <div className="assistant-loading" role="status"><span className="spinner spinner-small" /> Checking your workspace…</div>}
+      <form className="assistant-form" onSubmit={(event) => { event.preventDefault(); ask(); }}><label className="sr-only" htmlFor="assistant-question">Ask about your deals, rates, or content</label><input id="assistant-question" ref={inputRef} value={question} maxLength={500} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about your desk…" /><button className="assistant-send" disabled={loading || !question.trim()} aria-label="Ask assistant" title="Ask assistant"><Icon>→</Icon></button></form>
+    </section>}
+    <button ref={launcherRef} className={`assistant-launcher ${open ? "is-open" : ""}`} aria-expanded={open} aria-controls={open ? "desk-assistant-panel" : undefined} onClick={() => setOpen((value) => !value)}><Icon>✳</Icon><span>{open ? "Close" : "Ask your desk"}</span></button>
+  </>;
+}
+
+function Today({ onOpen, onNavigate }) {
+  const [data, setData] = useState(null);
+  const [deals, setDeals] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    Promise.all([api.today(), api.deals()]).then(([today, result]) => { setData(today); setDeals(result.deals); }).catch((reason) => setError(reason.message));
+  }, []);
+  if (error) return <ErrorMessage error={error} />;
+  if (!data) return <Loading />;
+  const counts = data.counts || {};
+  const actionLink = (action, index) => {
+    if (/^Reply to |^Chase payment from /.test(action)) {
+      const brand = action.replace(/^Reply to |^Chase payment from /, "");
+      return deals.find((deal) => deal.brand === brand)?.id;
+    }
+    return index === 2 ? "/content" : null;
+  };
+  return <>
+      <PageTitle eyebrow={`${new Intl.DateTimeFormat("en-IN", { weekday: "long" }).format(new Date()).toUpperCase()} · YOUR CREATOR DESK`} title="A good day to make moves." subtitle="Your brand partnerships, all in one place." action={<button className="primary-button" onClick={() => onNavigate("/inbox")}><span>＋</span> Parse an email</button>} />
+    <section className="stats-grid" aria-label="Deal counts">{statuses.map((status) => <div className="stat-card" key={status}><div className="stat-label">{statusLabels[status]}</div><div className="stat-value">{counts[status] || 0}</div><span className={`stat-mark mark-${status}`} /></div>)}</section>
+    <section className="today-layout"><div className="panel actions-panel"><div className="section-heading"><div><div className="eyebrow">YOUR NEXT STEPS</div><h2>Today, at a glance</h2></div><span className="subtle-count">{data.actions.length} actions</span></div><div className="action-list">{data.actions.map((action, index) => { const destination = actionLink(action, index); return <button key={`${action}-${index}`} className={`action-row ${destination ? "action-clickable" : ""}`} disabled={!destination} onClick={() => { if (destination === "/content") onNavigate(destination); else if (destination) onOpen(destination); }}><span className={`action-number action-number-${index}`}>{String(index + 1).padStart(2, "0")}</span><span className="action-copy">{action}<small>{index === 0 ? "A reply keeps the conversation moving" : index === 1 ? "Close the loop on an outstanding payment" : "See the posts behind this insight"}</small></span><span className="action-arrow">{destination ? "↗" : "✓"}</span></button>; })}</div></div>
+      <div className="panel focus-panel"><div className="eyebrow">IN FOCUS</div><div className="focus-art"><span className="orbit orbit-one"/><span className="orbit orbit-two"/><span className="focus-star">✳</span><span className="focus-spark focus-spark-a">✦</span><span className="focus-spark focus-spark-b">✧</span></div><h3>Built around your<br /><em>best work.</em></h3><p>See what resonates, know your worth, and make every partnership count.</p><button className="focus-link" onClick={() => onNavigate("/content")}>Explore your content <span>→</span></button></div></section>
+    <section className="recent-section"><div className="section-heading"><div><div className="eyebrow">KEEP THINGS MOVING</div><h2>Recent deals</h2></div><button type="button" className="text-link" onClick={() => onNavigate("/deals")}>View all <span>→</span></button></div><RecentDeals deals={deals.slice(0, 3)} onOpen={onOpen} onNavigate={onNavigate} /></section>
+  </>;
+}
+
+function RecentDeals({ deals, onOpen, onNavigate }) {
+  if (!deals.length) return <div className="recent-empty"><span>No partnerships yet.</span><button className="text-link" onClick={() => onNavigate("/inbox")}>Parse your first email <span>→</span></button></div>;
+  return <div className="recent-grid">{deals.map((deal) => <button key={deal.id} className="recent-card" onClick={() => onOpen(deal.id)}><span className="recent-monogram">{deal.brand.slice(0, 1)}</span><span className="recent-copy"><strong>{deal.brand}</strong><small>{money(deal.budgetInr)} · {deal.format}</small></span><StatusPill status={deal.status} /><Icon>↗</Icon></button>)}</div>;
+}
+
+function Inbox({ onOpen }) {
+  const [samples, setSamples] = useState([]);
+  const [rawEmail, setRawEmail] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [gmailStatus, setGmailStatus] = useState(null);
+  const [gmailMessages, setGmailMessages] = useState([]);
+  const [gmailError, setGmailError] = useState("");
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  useEffect(() => { api.samples().then(setSamples).catch((reason) => setError(reason.message)); }, []);
+  useEffect(() => {
+    let active = true;
+    let running = false;
+    async function syncInbox() {
+      if (running) return;
+      running = true;
+      try {
+        const status = await api.gmailStatus();
+        if (!active) return;
+        setGmailStatus(status);
+        if (status.connected) {
+          const result = await api.gmailMessages();
+          if (active) { setGmailMessages(result.messages || []); setGmailError(""); }
+        }
+      } catch (reason) {
+        if (active) setGmailError(reason.message);
+      } finally { running = false; }
+    }
+    syncInbox();
+    const timer = window.setInterval(syncInbox, 5000);
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("gmail") === "connected";
+    const connectionError = params.get("gmail_error");
+    if (connected) setGmailError("Gmail is connected. Your recent inbox is syncing now.");
+    else if (connectionError) {
+      const messages = {
+        account: "That Google account is not approved for this creator workspace.",
+        refresh: "Google did not provide offline access. Revoke CollabDesk in Google Account settings, then connect again.",
+        setup: "Gmail connection is not fully configured yet.",
+        state: "The Google sign-in expired. Please try connecting again.",
+        cancelled: "Gmail connection was cancelled.",
+        connect: "Gmail could not connect. Check the Google Cloud and Supabase setup, then retry.",
+      };
+      setGmailError(messages[connectionError] || "Gmail could not connect.");
+    }
+    if (connected || connectionError) window.history.replaceState({}, "", window.location.pathname);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+  async function parse(event) {
+    event.preventDefault(); setError(""); setResult(null); setLoading(true);
+    try { setResult(await api.parseEmail(rawEmail)); } catch (reason) { setError(reason.message); }
+    finally { setLoading(false); }
+  }
+  async function disconnectGmail() {
+    if (!window.confirm("Disconnect Gmail and remove its cached messages from CollabDesk?")) return;
+    setDisconnecting(true);
+    try {
+      await api.disconnectGmail(); setGmailMessages([]); setGmailStatus((current) => ({ ...current, connected: false, email: null }));
+      setGmailError("Gmail is disconnected and its cached messages were removed.");
+    } catch (reason) { setGmailError(reason.message); }
+    finally { setDisconnecting(false); }
+  }
+  async function useGmailMessage(message) {
+    setLoadingMessage(message.gmail_message_id); setGmailError("");
+    try {
+      const { message: fullMessage } = await api.gmailMessage(message.gmail_message_id);
+      setRawEmail(`From: ${fullMessage.from_name ? `${fullMessage.from_name} <${fullMessage.from_email}>` : fullMessage.from_email}\nSubject: ${fullMessage.subject}\n\n${fullMessage.body_text || fullMessage.snippet}`);
+      setResult(null); setError(""); document.getElementById("raw-email")?.focus();
+    } catch (reason) { setGmailError(reason.message); }
+    finally { setLoadingMessage(""); }
+  }
+  return <>
+    <PageTitle eyebrow="INBOX" title="A new note, handled." subtitle="Connect Gmail for incoming brand emails, or paste a message to get started." />
+    <section className="gmail-panel" aria-label="Gmail connection">
+      <div className="gmail-panel-heading"><span className="gmail-mark" aria-hidden="true">M</span><div><strong>{gmailStatus?.connected ? "Gmail is connected" : "Bring brand emails into CollabDesk"}</strong><small>{gmailStatus?.connected ? `${gmailStatus.email} · inbox checks every few seconds` : "New messages sync securely into this creator workspace."}</small></div></div>
+      <div className="gmail-actions">{gmailStatus?.connected ? <button className="secondary-button" onClick={disconnectGmail} disabled={disconnecting}>{disconnecting ? "Disconnecting…" : "Disconnect"}</button> : gmailStatus?.configured ? <a className="primary-button gmail-connect" href="/api/gmail/connect">Connect Gmail <span>→</span></a> : <span className="gmail-setup-state">Connection setup needed</span>}</div>
+      <p className="gmail-privacy-note">CollabDesk reads Inbox messages only. Email text is cached in Supabase for up to 30 days; parsing a selected message may send its text to OpenAI when AI is configured.</p>
+      {gmailError && <p className="gmail-notice" role="status">{gmailError}</p>}
+      {gmailStatus?.connected && <div className="gmail-message-list" aria-live="polite">{gmailMessages.length ? gmailMessages.map((message) => <article className="gmail-message" key={message.gmail_message_id}><div className="gmail-message-copy"><strong>{message.subject}</strong><span>{message.from_name || message.from_email} · {new Date(message.internal_date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span><small>{message.snippet}</small></div><button className="text-link gmail-use-message" disabled={loadingMessage === message.gmail_message_id} onClick={() => useGmailMessage(message)}>{loadingMessage === message.gmail_message_id ? "Loading…" : "Use email"} <span>→</span></button></article>) : <p className="gmail-empty">{gmailError ? "Waiting for new mail…" : "Loading recent inbox messages…"}</p>}</div>}
+    </section>
+    <div className="inbox-layout"><form className="panel email-panel" onSubmit={parse}><div className="section-heading"><div><div className="eyebrow">START WITH A SAMPLE</div><h2>Try a familiar email</h2></div><span className="sample-count">{samples.length} samples</span></div><div className="sample-list">{samples.map((sample) => <button className={`sample-button ${rawEmail === sample.rawEmail ? "selected" : ""}`} type="button" key={sample.id} onClick={() => { setRawEmail(sample.rawEmail); setResult(null); setError(""); }}><span className="sample-letter">{sample.label.slice(0, 1)}</span><span>{sample.label}</span><Icon>↘</Icon></button>)}</div><label className="field-label" htmlFor="raw-email">Or paste an email</label><textarea id="raw-email" value={rawEmail} onChange={(event) => { setRawEmail(event.target.value); setResult(null); }} placeholder="Paste the brand's email here…" rows={9} required /><p className="privacy-disclosure">When AI is configured, this email text is sent to OpenAI for extraction. Otherwise, CollabDesk uses its offline parser.</p><div className="form-footer"><span className="privacy-note"><Icon>✳</Icon> Your rate is always your decision.</span><button className="primary-button" disabled={loading || !rawEmail.trim()}>{loading ? <><span className="spinner spinner-small" /> Reading email…</> : <>Parse email <span>→</span></>}</button></div><ErrorMessage error={error} /></form>
+      <aside className="inbox-aside"><div className="panel inbox-tip"><div className="tip-icon">✦</div><div className="eyebrow">YOUR DESK, YOUR TERMS</div><h3>Know what’s in<br />the fine print.</h3><p>CollabDesk pulls out the budget, deliverables and usage window, then checks the offer against your own rates.</p><div className="tip-rule"><span>01</span> Your rate card sets the fee</div><div className="tip-rule"><span>02</span> You choose what to send</div></div>
+      {result && <div className="result-card"><div className="result-top"><span className="result-icon">✓</span><span>Deal found</span>{result.quote?.lowball && <span className="lowball"><i />Lowball</span>}</div><h3>{result.deal.brand}</h3><div className="result-budget">{money(result.deal.budgetInr)} <span>· {result.deal.format}</span></div><div className="result-lines"><div><span>Deliverables</span><strong>{result.deal.deliverables.join(" + ")}</strong></div><div><span>Suggested fee</span><strong className="accent-text">{money(result.quote?.suggestedInr)}</strong></div><div className="result-summary">{result.deal.summary}</div></div>{result.source === "fallback" && <p className="offline-note">Shown from offline parser.</p>}<button className="secondary-button full-button" onClick={() => onOpen(result.deal.id)}>Open deal <span>↗</span></button></div>}
+      </aside></div>
+  </>;
+}
+
+function Deals({ onOpen }) {
+  const [deals, setDeals] = useState(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  useEffect(() => { api.deals().then((result) => setDeals(result.deals)).catch((reason) => setError(reason.message)); }, []);
+  async function changeStatus(deal, status) {
+    setBusy(deal.id); setError("");
+    try { const saved = await api.setDealStatus(deal.id, status); setDeals((current) => current.map((item) => item.id === saved.id ? { ...item, ...saved } : item)); }
+    catch (reason) { setError(reason.message); }
+    finally { setBusy(""); }
+  }
+  return <><PageTitle eyebrow="DEAL BOARD" title="Every conversation, in motion." subtitle="A clear view of what’s new, what’s moving, and what’s wrapped." action={<span className="board-total">{deals?.length || 0} partnerships</span>} /><ErrorMessage error={error} />{!deals ? <Loading /> : <div className="board-grid">{statuses.map((status) => { const list = deals.filter((deal) => deal.status === status); return <section className="board-column" key={status}><div className="column-heading"><span className={`column-dot dot-${status}`} /><h2>{statusLabels[status]}</h2><span className="column-count">{list.length}</span></div><div className="column-cards">{list.map((deal) => <DealCard key={deal.id} deal={deal} busy={busy === deal.id} onStatus={changeStatus} onOpen={onOpen} />)}{!list.length && <div className="empty-column">Nothing here yet</div>}</div></section>; })}</div>}</>;
+}
+
+function DealDetail({ id, onBack, onStatusChanged }) {
+  const [deal, setDeal] = useState(null);
+  const [error, setError] = useState("");
+  const [loadingReply, setLoadingReply] = useState("");
+  const [reply, setReply] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  useEffect(() => { setDeal(null); setReply(null); setError(""); api.deal(id).then(setDeal).catch((reason) => setError(reason.message)); }, [id]);
+  async function generate(intent) {
+    setError(""); setLoadingReply(intent);
+    try { setReply(await api.reply(id, intent)); }
+    catch (reason) { setError(reason.message); }
+    finally { setLoadingReply(""); }
+  }
+  async function updateStatus(status) {
+    setSavingStatus(true); setError("");
+    try { const updated = await api.setDealStatus(id, status); setDeal((current) => ({ ...current, ...updated })); onStatusChanged(); }
+    catch (reason) { setError(reason.message); }
+    finally { setSavingStatus(false); }
+  }
+  async function copyReply() {
+    try { await navigator.clipboard.writeText(`${reply.subject}\n\n${reply.body}`); setCopied(true); setTimeout(() => setCopied(false), 1800); }
+    catch { setError("Could not copy the reply. Select the text and copy it instead."); }
+  }
+  if (!deal && !error) return <Loading />;
+  if (!deal) return <><button className="back-link" onClick={onBack}>← Back to deals</button><ErrorMessage error={error} /></>;
+  return <><button className="back-link" onClick={onBack}>← All deals</button><ErrorMessage error={error} /><div className="detail-heading"><div><div className="eyebrow">PARTNERSHIP DETAILS</div><h1>{deal.brand}</h1><p>{deal.summary}</p></div><StatusPill status={deal.status} /></div>
+    <div className="detail-layout"><div className="detail-main"><section className="panel detail-facts"><div className="section-heading"><div><div className="eyebrow">THE BRIEF</div><h2>What they’re looking for</h2></div>{deal.quote?.lowball && <span className="lowball"><i />Lowball</span>}</div><div className="facts-grid"><Fact label="Offered budget" value={money(deal.budgetInr)} /><Fact label="Format" value={deal.format} /><Fact label="Deliverables" value={deal.deliverables.join(" + ")} /><Fact label="Deadline" value={deal.deadline} /><Fact label="Usage period" value={`${deal.usageDays} days`} /><Fact label="Intent" value={deal.intent.replaceAll("_", " ")} /></div></section>
+      <section className="panel quote-panel"><div className="quote-icon">₹</div><div className="quote-copy"><div className="eyebrow">YOUR RATE, YOUR CALL</div><h2>Suggested fee <strong>{money(deal.quote?.suggestedInr)}</strong></h2><p>{deal.quote?.reason}</p></div><span className={`quote-signal ${deal.quote?.lowball ? "signal-low" : "signal-good"}`}>{deal.quote?.lowball ? "Below your rate" : "On your terms"}</span></section>
+      <section className="panel reply-panel"><div className="section-heading"><div><div className="eyebrow">MAKE YOUR MOVE</div><h2>Draft a reply</h2></div><span className="subtle-count">You can edit before copying</span></div><p className="ai-disclosure">When AI is configured, saved deal details are sent to OpenAI for drafting. Review the message before you copy it.</p><div className="reply-actions">{[["accept", "Accept", "✓"], ["counter", "Counter", "↗"], ["decline", "Decline", "×"], ["ask_brief", "Ask for brief", "?" ]].map(([intent, label, icon]) => <button key={intent} className={`reply-choice ${intent === "counter" ? "reply-choice-primary" : ""}`} disabled={Boolean(loadingReply)} onClick={() => generate(intent)}>{loadingReply === intent ? <span className="spinner spinner-small" /> : <span>{icon}</span>}{label}</button>)}</div>{reply && <div className="reply-editor"><div className="editor-top"><span><span className="editor-dot" /> Draft ready</span>{reply.source === "fallback" && <small>Offline draft</small>}</div><label className="field-label" htmlFor="reply-subject">Subject</label><input id="reply-subject" value={reply.subject} onChange={(event) => setReply({ ...reply, subject: event.target.value })} /><label className="field-label" htmlFor="reply-body">Message</label><textarea id="reply-body" rows={7} value={reply.body} onChange={(event) => setReply({ ...reply, body: event.target.value })} /><button className="secondary-button" onClick={copyReply}>{copied ? "Copied ✓" : "Copy reply ↗"}</button></div>}</section></div>
+      <aside className="detail-side"><section className="panel status-panel"><div className="eyebrow">DEAL STATUS</div><h3>Keep it up to date.</h3><label className="field-label" htmlFor="deal-status">Current stage</label><select id="deal-status" value={deal.status} disabled={savingStatus} onChange={(event) => updateStatus(event.target.value)}>{statuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select><p>Status changes update your deal board right away.</p></section><section className="panel about-panel"><div className="eyebrow">A NOTE FROM YOUR DESK</div><p>Rates are calculated from your media kit. The writing assistant can help with the words; the fee stays yours.</p><span className="note-signature">Made for Aanya <span>✳</span></span></section></aside></div>
+  </>;
+}
+
+function Fact({ label, value }) { return <div className="fact"><span>{label}</span><strong>{value || "—"}</strong></div>; }
+
+function Content() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => { api.content().then(setData).catch((reason) => setError(reason.message)); }, []);
+  return <><PageTitle eyebrow="CONTENT PULSE" title="Your work speaks." subtitle="A closer look at the posts people are spending time with." />{error ? <ErrorMessage error={error} /> : !data ? <Loading /> : <><div className="insight-banner"><div className="insight-mark">✳</div><div><div className="eyebrow">THE SIGNAL</div><h2>{data.insight}</h2></div><div className="insight-averages"><div><span>Food average</span><strong>{number(data.averages.food)}</strong><small>reach</small></div><div><span>Beauty average</span><strong>{number(data.averages.beauty)}</strong><small>reach</small></div></div></div><section className="panel content-panel"><div className="section-heading"><div><div className="eyebrow">YOUR LIBRARY</div><h2>Posts & reels</h2></div><span className="subtle-count">{data.posts.length} posts</span></div><div className="table-wrap"><table><thead><tr><th>Post</th><th>Format</th><th>Topic</th><th>Reach</th><th>Saves</th><th>Collab</th></tr></thead><tbody>{data.posts.map((post) => <tr key={post.id}><td><span className={`post-icon topic-${post.topic}`}>{post.topic === "food" ? "✳" : post.topic === "beauty" ? "✦" : "↗"}</span><strong>{post.title}</strong></td><td><span className="format-tag">{post.type}</span></td><td className="topic-cell">{post.topic}</td><td>{number(post.reach)}</td><td>{number(post.saves)}</td><td><span className={`collab-tag ${post.collab ? "is-collab" : ""}`}>{post.collab ? "Partnered" : "Organic"}</span></td></tr>)}</tbody></table></div></section></>}</>;
+}
+
+function Kit({ creator, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { if (creator) setForm({ niche: creator.niche, followers: creator.followers, rates: { ...creator.rates } }); }, [creator]);
+  function changeRate(format, value) { setForm((current) => ({ ...current, rates: { ...current.rates, [format]: value } })); setSaved(false); }
+  async function save(event) {
+    event.preventDefault(); setSaving(true); setSaved(false); setError("");
+    try { const result = await api.saveCreator({ niche: form.niche, followers: Number(form.followers), rates: Object.fromEntries(Object.entries(form.rates).map(([key, value]) => [key, Number(value)])) }); onSaved(result); setForm({ niche: result.niche, followers: result.followers, rates: { ...result.rates } }); setSaved(true); }
+    catch (reason) { setError(reason.message); }
+    finally { setSaving(false); }
+  }
+  return <><PageTitle eyebrow="MEDIA KIT" title="Your work has a worth." subtitle="Your rates set the starting point for every partnership." /><div className="kit-layout">{!form ? <Loading /> : <><form className="panel kit-form" onSubmit={save}><div className="section-heading"><div><div className="eyebrow">CREATOR PROFILE</div><h2>The essentials</h2></div><div className="kit-avatar">{creator?.name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "AK"}</div></div><label className="field-label" htmlFor="niche">Your niche</label><input id="niche" maxLength={120} value={form.niche} onChange={(event) => { setForm({ ...form, niche: event.target.value }); setSaved(false); }} required /><div className="followers-field"><div><label className="field-label" htmlFor="followers">Followers</label><p>Your current audience size</p></div><div className="input-suffix"><input id="followers" type="number" min="0" max="1000000000" value={form.followers} onChange={(event) => { setForm({ ...form, followers: event.target.value }); setSaved(false); }} required /><span>people</span></div></div><div className="rate-heading"><div><label className="field-label">Your starting rates</label><p>Change any time. Your quotes follow.</p></div><span>INR · ₹</span></div><div className="rate-fields">{[["reel", "Reel", "◉"], ["post", "Feed post", "▧"], ["stories", "Stories", "◌"]].map(([format, label, icon]) => <label key={format} className="rate-field"><span className="rate-kind"><span>{icon}</span>{label}</span><span className="rate-input"><b>₹</b><input aria-label={`${label} rate in rupees`} type="number" min="1" max="1000000000" value={form.rates[format]} onChange={(event) => changeRate(format, event.target.value)} required /></span></label>)}</div><ErrorMessage error={error} /><div className="save-footer"><span>{saved ? <span className="saved-message">✓ Saved</span> : "Only you decide what feels right."}</span><button className="primary-button" disabled={saving}>{saving ? "Saving…" : "Save changes"}<span>→</span></button></div></form>
+      <aside className="kit-aside"><section className="panel kit-preview"><div className="eyebrow">YOUR RATE CARD</div><h3>{creator?.name || "Aanya Kulkarni"}</h3><div className="preview-handle">{creator?.handle || "@aanya.eats.pune"}</div><div className="preview-stats"><div><strong>{number(form.followers)}</strong><span>followers</span></div><div><strong>Pune</strong><span>based in</span></div></div><div className="preview-divider" />{[["Reel", "reel"], ["Feed post", "post"], ["Stories", "stories"]].map(([label, key]) => <div className="preview-rate" key={key}><span>{label}</span><strong>{money(Number(form.rates[key]))}</strong></div>)}</section><section className="panel house-rules"><div className="eyebrow">HOUSE RULES</div><h3>Good work, on your terms.</h3><ul><li>No alcohol brands</li><li>No second café brand in the same month</li><li>Usage rights included for 30 days only</li><li>Usage longer than 30 days adds 40 percent</li></ul><div className="rules-footer">These guardrails stay yours. <span>✳</span></div></section></aside></>}</div></>;
 }
