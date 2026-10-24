@@ -110,6 +110,24 @@ export async function getVoiceReply(text, history = []) {
   }
 }
 
+export async function browserVoiceReply(text, history = []) {
+  const normalizedText = String(text || '').trim().slice(0, MAX_TEXT);
+  const priorTurns = Array.isArray(history)
+    ? history.slice(-6).filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.text === 'string')
+      .map((turn) => ({ role: turn.role, text: turn.text.slice(0, MAX_TEXT) }))
+    : [];
+  if (!normalizedText) throw new Error('Say or type a message first.');
+  const result = await getVoiceReply(normalizedText, priorTurns);
+  if (result.transfer) {
+    return {
+      ...result,
+      reply: 'This browser demo cannot transfer a phone call. The phone handoff works only after the incoming call service is configured.',
+      transfer: false,
+    };
+  }
+  return result;
+}
+
 export function incomingCallTwiml(requestUrl) {
   const response = new VoiceResponse();
   response.say({ language: VOICE_LANGUAGE }, 'Hello, this is CollabDeskAI, Aanya’s creator assistant. How can I help with your collaboration today?');
