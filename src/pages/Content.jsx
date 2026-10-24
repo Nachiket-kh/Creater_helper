@@ -57,7 +57,7 @@ export default function Content() {
 
     <section className="panel studio-panel">
       <div className="panel-heading"><div><span className="eyebrow">GITHUB CREATOR STUDIO</span><h2>Turn repository changes into a draft</h2></div><span className="studio-connected"><i /> Public repo</span></div>
-      <p className="studio-intro">CollabDesk reads recent commits, pull requests, discussions, and releases, then shapes a draft for your creator style and platform.</p>
+      <p className="studio-intro">Nexo reads recent commits, pull requests, discussions, and releases, then shapes a draft for your creator style and platform.</p>
       <div className="studio-controls">
         <label><span>GITHUB REPOSITORY</span><input value={repo} onChange={(event) => setRepo(event.target.value)} placeholder="owner/repository" autoComplete="off" /></label>
         <label><span>CREATOR STYLE</span><select value={creatorType} onChange={(event) => setCreatorType(event.target.value)}>{creatorOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
