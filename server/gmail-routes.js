@@ -86,6 +86,10 @@ export function registerGmailRoutes(app, { env = process.env } = {}) {
 
   app.use("/api/*", async (c, next) => {
     if (!gmailAuthRequired(env) || APP_CALLBACKS.has(c.req.path)) return next();
+    // With no Supabase database configured, production serves only the bundled
+    // sample workspace. Keep its public demo APIs available for a walkthrough.
+    // Deployments using Supabase still pass through the creator session gate.
+    if (env.DATABASE_PROVIDER !== "supabase" && !configReadyForRuntime(env, config)) return next();
     if (!configReadyForRuntime(env, config)) {
       return c.json({ error: "Creator workspace sign-in is not configured for this deployment." }, 503);
     }
