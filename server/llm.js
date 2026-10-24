@@ -1,34 +1,41 @@
-const chatUrl = process.env.OLLAMA_CHAT_URL || 'http://localhost:11434/api/chat';
-const model = process.env.OLLAMA_MODEL || 'qwen3.5:4b';
-const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) > 0 ? Number(process.env.OLLAMA_TIMEOUT_MS) : 60000;
-
 export async function askJSON(prompt, options = {}) {
-  if (process.env.VERCEL && !process.env.OLLAMA_CHAT_URL) throw new Error('Ollama is only available in the local demo.');
-  const requestTimeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : timeoutMs;
+  const apiKey = process.env.OPENAI_API_KEY;
+  const ollamaUrl = process.env.OLLAMA_CHAT_URL;
+  if (process.env.VERCEL && !apiKey && ollamaUrl && /localhost|127\.0\.0\.1/i.test(ollamaUrl)) {
+    throw new Error("A local Ollama server cannot be reached from Vercel.");
+  }
+  if (!apiKey && !ollamaUrl) throw new Error("No AI provider is configured");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), Number(options.timeoutMs) > 0 ? Math.min(Number(options.timeoutMs), 60_000) : 10_000);
   try {
-    const response = await fetch(chatUrl, {
-      method: 'POST',
+    const usingOpenAI = Boolean(apiKey);
+    const response = await fetch(usingOpenAI ? "https://api.openai.com/v1/chat/completions" : ollamaUrl, {
+      method: "POST",
+      headers: { ...(usingOpenAI ? { Authorization: `Bearer ${apiKey}` } : {}), "Content-Type": "application/json" },
+      body: JSON.stringify(usingOpenAI
+        ? { model: "gpt-4o-mini", temperature: 0, messages: [{ role: "user", content: prompt }] }
+        : { model: process.env.OLLAMA_MODEL || "qwen3.5:4b", stream: false, format: "json", messages: [{ role: "user", content: prompt }] }),
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        think: false,
-        format: 'json',
-        messages: [{ role: 'user', content: prompt }]
-      })
     });
-    if (!response.ok) throw new Error(`Local model request failed (${response.status})`);
+    if (!response.ok) throw new Error(`AI request failed (${response.status})`);
     const payload = await response.json();
-    const content = payload.message?.content;
-    if (typeof content !== 'string') throw new Error('Local model returned no message');
-    const start = content.indexOf('{');
-    const end = content.lastIndexOf('}');
-    if (start < 0 || end < start) throw new Error('Local model returned invalid JSON');
-    return JSON.parse(content.slice(start, end + 1));
+    const content = usingOpenAI ? payload.choices?.[0]?.message?.content : payload.message?.content;
+    if (typeof content !== "string") throw new Error("OpenAI returned no message content");
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start < 0 || end < start) {
+      const error = new Error("OpenAI did not return JSON");
+      error.code = "INVALID_JSON";
+      throw error;
+    }
+    try {
+      return JSON.parse(content.slice(start, end + 1));
+    } catch {
+      const error = new Error("OpenAI returned invalid JSON");
+      error.code = "INVALID_JSON";
+      throw error;
+    }
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timeout);
   }
 }

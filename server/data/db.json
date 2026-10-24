@@ -29,7 +29,7 @@
         "1 reel"
       ],
       "summary": "Gifted skincare reel in exchange for exposure. No fee.",
-      "status": "confirmed",
+      "status": "new",
       "usageDays": 30,
       "createdAt": "2026-10-20T09:00:00.000Z"
     },
@@ -65,6 +65,7 @@
       "createdAt": "2026-10-12T09:00:00.000Z"
     },
     {
+      "id": "d-a7d0dfa7-1905-462c-b2f0-83c7fc6e5636",
       "brand": "Café Ramwadi",
       "intent": "paid_collab",
       "format": "reel",
@@ -74,11 +75,10 @@
         "1 30 second reel",
         "2 stories"
       ],
-      "summary": "A café near Ramwadi metro wants a 30 second reel and 2 stories this week with 30 days of usage.",
+      "summary": "Café Ramwadi offered ₹8,000 for one reel and two stories with 30 days of usage.",
       "usageDays": 30,
-      "id": "d-1792584952619",
-      "status": "negotiating",
-      "createdAt": "2026-10-21T12:15:52.619Z"
+      "status": "new",
+      "createdAt": "2026-10-23T15:44:43.672Z"
     }
   ],
   "posts": [
