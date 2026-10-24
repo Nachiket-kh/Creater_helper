@@ -97,7 +97,7 @@ function fallbackReply(text, history) {
 async function getVoiceReply(text, history) {
   try {
     const voiceTimeoutMs = Number(process.env.VOICE_AI_TIMEOUT_MS) > 0 ? Number(process.env.VOICE_AI_TIMEOUT_MS) : 7000;
-    const result = await askJSON(voiceAgentPrompt(history, text), { timeoutMs: Math.min(voiceTimeoutMs, 10000) });
+    const result = await askJSON(voiceAgentPrompt(history, text), { timeoutMs: Math.min(voiceTimeoutMs, 10000), maxTokens: 180 });
     if (typeof result?.reply !== 'string' || !result.reply.trim()) throw new Error('Invalid voice reply');
     return {
       reply: result.reply.trim().slice(0, MAX_TEXT),

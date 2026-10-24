@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm:server\" \"npm:client\"",
     "build": "vite build",
-    "server": "node server/index.js",
+    "server": "node --env-file-if-exists=.env server/index.js",
     "client": "vite",
     "test": "node --test"
   },

@@ -19,7 +19,14 @@ export async function askJSON(prompt, options = {}) {
       },
       body: JSON.stringify(usingOpenAI
         ? { model: "gpt-4o-mini", temperature: 0, messages: [{ role: "user", content: prompt }] }
-        : { model: process.env.OLLAMA_MODEL || "qwen3.5:4b", stream: false, format: "json", messages: [{ role: "user", content: prompt }] }),
+        : {
+            model: process.env.OLLAMA_MODEL || "qwen3.5:4b",
+            stream: false,
+            format: "json",
+            think: false,
+            options: { num_predict: Number(options.maxTokens) > 0 ? Math.min(Number(options.maxTokens), 1024) : 1024 },
+            messages: [{ role: "user", content: prompt }],
+          }),
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`AI request failed (${response.status})`);
