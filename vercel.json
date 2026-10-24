@@ -11,7 +11,10 @@
     { "source": "/deals/:id", "destination": "/index.html" },
     { "source": "/content", "destination": "/index.html" },
     { "source": "/kit", "destination": "/index.html" },
-    { "source": "/ui-kit", "destination": "/index.html" },
-    { "source": "/voice", "destination": "/index.html" }
+    { "source": "/voice", "destination": "/index.html" },
+    { "source": "/ui-kit", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/gmail/renew", "schedule": "0 3 * * *" }
   ]
 }

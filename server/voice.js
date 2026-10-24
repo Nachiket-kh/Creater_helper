@@ -12,7 +12,7 @@ export function voiceConfiguration() {
   return {
     twilioConfigured: Boolean(process.env.TWILIO_AUTH_TOKEN),
     transferConfigured: Boolean(process.env.VOICE_TRANSFER_NUMBER),
-    aiConfigured: Boolean(process.env.OLLAMA_CHAT_URL),
+    aiConfigured: Boolean(process.env.OPENAI_API_KEY || (process.env.OLLAMA_CHAT_URL && !(process.env.VERCEL && /localhost|127\.0\.0\.1/i.test(process.env.OLLAMA_CHAT_URL)))),
     webhookBaseUrl: process.env.VOICE_WEBHOOK_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
   };
 }

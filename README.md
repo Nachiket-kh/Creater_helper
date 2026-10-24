@@ -1,57 +1,98 @@
 # CollabDesk
 
-A local AI desk demo for one micro-creator. CollabDesk turns brand emails into priced collaboration deals, drafts replies, tracks each deal, and surfaces content performance.
+CollabDesk is a creator-brand collaboration desk for one creator. This checkout contains the React/Vite frontend, Node.js/Hono API, deterministic pricing helpers, Supabase persistence, and a Gmail inbox integration using Google OAuth and Gmail push notifications. Production API access is restricted to the configured creator's Google account.
 
-## Run locally
+## Run the API locally
 
-1. Install dependencies with `npm install`.
-2. For live AI drafts, start Ollama locally with the `qwen3.5:4b` model available. CollabDesk sends model requests from its backend to `http://localhost:11434/api/chat`; no API key is needed. You can override the endpoint, model, or 60-second request timeout with `OLLAMA_CHAT_URL`, `OLLAMA_MODEL`, and `OLLAMA_TIMEOUT_MS`.
+Requirements: Node.js 20 or later.
 
-   If Ollama is unavailable or a request fails, CollabDesk uses deterministic offline parsing and reply drafts.
-3. Start both the API and frontend with `npm run dev`.
-4. Open http://localhost:5173.
-
-## Demo path
-
-Inbox → Café Ramwadi → Parse → Counter → move to Negotiating.
-
-Rates are computed in code from the creator’s media kit. The model only extracts deal details and writes email text; it never sets or changes a suggested rate.
-
-The frontend runs on port 5173 and the API on port 3001. Data is stored in `server/data/db.json` for this local demo. Ollama listens on port 11434; the server uses HTTP because the local Ollama endpoint does not provide HTTPS.
-
-## Deploy to Vercel
-
-Import the repository root as a Vite project. `vercel.json` sets the install and build commands, publishes `dist`, and routes the app pages to the SPA entry point. API handlers live in `api/` and run as Node.js functions. No API key is required for the offline parser and reply fallback. For live model calls, set `OLLAMA_CHAT_URL` to a publicly reachable Ollama-compatible endpoint; `localhost` on your computer is not reachable by a Vercel function.
-
-The JSON file remains the local demo store. Vercel functions cannot persist writes to the deployment filesystem, so deployed edits are best-effort in function memory and may reset after a cold start. Add a persistent store before using this with real creator data or relying on saved changes across deployments.
-
-## AI voice assistant
-
-Open `/voice` for the call-agent setup and connection status. The Twilio voice webhook is `/api/voice/incoming`; configure it on the Twilio phone number as an HTTP POST URL. The assistant uses Twilio speech recognition and speech output, and maintains short encrypted conversation context during a call. It can hand callers to a human when they ask.
-
-Set these values in Vercel Project Settings → Environment Variables, then redeploy:
-
-- `TWILIO_AUTH_TOKEN`: the Twilio Auth Token, used to validate signed webhook requests.
-- `VOICE_TRANSFER_NUMBER`: the human handoff number in E.164 format, such as `+1...`.
-- `VOICE_WEBHOOK_BASE_URL`: the canonical HTTPS origin for the deployment, such as `https://your-app.vercel.app` (no path).
-- `OLLAMA_CHAT_URL`: optional public Ollama-compatible `/api/chat` endpoint for AI-generated conversation turns. A local `localhost` URL is unreachable from Vercel; without a public model endpoint, the call assistant uses its built-in fallback responses.
-- `OLLAMA_MODEL`: optional model name; defaults to `qwen3.5:4b`.
-- `OLLAMA_API_KEY`: optional bearer token for endpoints that require it. Store it as a Vercel Secret; the backend adds the `Authorization: Bearer …` header without exposing it to the frontend.
-- `VOICE_SESSION_SECRET`: optional private secret for encrypting temporary call context; defaults to a key derived from `TWILIO_AUTH_TOKEN`.
-
-Keep all credentials in Vercel settings, never in GitHub. The assistant does not record calls or perform actions in external accounts.
-
-## UI component library
-
-Open `/ui-kit` to browse the component showcase. Reusable React primitives are exported from `src/components/ui/index.jsx`: `Button`, `Card` and its header/content/footer parts, `Label`, `Input`, `Textarea`, `Badge`, and `Avatar`. Their styles and design tokens are scoped to `.ui-kit` in `src/components/ui/ui.css`, so they do not change the CollabDesk desk screens.
-
-```jsx
-import { Button, Card, CardContent, CardHeader, CardTitle } from './components/ui/index.jsx';
-
-<Card>
-  <CardHeader><CardTitle>Campaign overview</CardTitle></CardHeader>
-  <CardContent><Button>Save changes</Button></CardContent>
-</Card>
+```sh
+npm install
+npm run dev
 ```
 
-The library uses Indigo 500 and Violet 600 actions, Slate 900 text on white surfaces, 12px corners, medium card elevation, and an 8px spacing scale.
+Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the API at `http://127.0.0.1:3001`. The local API is bound to loopback. Local runs without Gmail credentials use the seeded demo workspace. Production runs require Gmail OAuth configuration and a single allowed creator email; the API rejects workspace requests until that configuration is complete.
+
+To enable model-assisted email parsing and reply drafting, set `OPENAI_API_KEY` in the server process environment. The app uses `gpt-4o-mini`; when the key is missing or the provider fails, the API identifies deterministic fallback responses with `source: "fallback"`.
+
+When the key is configured, email parsing sends the pasted email text to OpenAI. Reply drafting sends saved deal details, not the original email body. The Inbox and deal reply screens disclose this before the user runs those actions.
+
+The compact **Ask your desk** assistant answers questions about rates, deal follow-ups, and content performance using saved workspace data. Without an OpenAI key, it returns clearly labeled deterministic workspace insights. When configured, it sends the question and a bounded summary of creator rates, deals, and post metrics to OpenAI; raw email text is not included. The assistant never sends replies or changes deal data.
+
+For a frontend on another local port, set `ALLOWED_ORIGINS` to a comma-separated list of exact origins. The defaults are `http://localhost:5173` and `http://127.0.0.1:5173`. Set `HOST` only when intentionally changing the listen address. `PORT` defaults to `3001`.
+
+Demo path: **Inbox → Café Ramwadi → Parse email → Counter → move to Negotiating**. Rates and lowball decisions are computed in code; the model only extracts email details and writes reply text.
+
+File storage is the default. The demo data is in `server/data/db.json`; set `COLLABDESK_DB_PATH` to use another local JSON file. Concurrent in-process mutations are serialized and writes use atomic file replacement.
+
+### Use Supabase Postgres
+
+1. The `creater_production` Supabase project (`https://mmzioyebwkdpkinuhlas.supabase.co`) already has the `collabdesk_state` migration applied. For a different project, run [`supabase/migrations/202610230001_collabdesk_state.sql`](supabase/migrations/202610230001_collabdesk_state.sql) in its SQL editor.
+2. Set these variables in the **backend server environment**:
+
+   ```sh
+   export DATABASE_PROVIDER=supabase
+   export SUPABASE_URL=https://mmzioyebwkdpkinuhlas.supabase.co
+   export SUPABASE_SECRET_KEY=sb_secret_...
+   ```
+
+   Use the project URL and a Supabase secret key from the project Connect/API Keys page. The secret key is server-only and bypasses row-level policies; never put it in browser code or commit it. Supabase [recommends secret keys only in server-side code](https://supabase.com/docs/guides/getting-started/api-keys). The migration enables RLS and grants table access only to the backend `service_role`.
+
+3. Start the API. On first database access, CollabDesk copies the current local JSON state into the empty Supabase state row. Later reads and writes use Supabase. Updates use a revision check and retry to avoid lost writes across server instances.
+
+The data is currently stored as one JSONB state row to match the existing single-creator data model. This is not multi-tenant storage. Add authentication and per-user rows/policies before using it for multiple creators. The live schema and its grants have been verified. The backend still needs `DATABASE_PROVIDER=supabase` and a Supabase secret key in its runtime environment before application requests use the live database; the secret key is not available through the Supabase project connection and must never be committed or put in browser code.
+
+## Run backend tests
+
+```sh
+npm test
+```
+
+The tests use a temporary copy of the seed data and do not alter the checked-in demo database.
+
+## API routes
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Health check |
+| GET, PUT | `/api/creator` | Read or update the demo creator profile and rates |
+| GET | `/api/deals` | List deals with current rate quotes |
+| GET | `/api/deals/:id` | Read a deal |
+| PATCH | `/api/deals/:id` | Update a deal status |
+| POST | `/api/inbox/parse` | Parse an email into a saved deal |
+| POST | `/api/deals/:id/rate` | Recalculate a deal quote |
+| POST | `/api/deals/:id/reply` | Draft an accept, counter, decline, or clarification reply |
+| GET | `/api/content` | Read seeded demo posts and reach averages |
+| GET | `/api/today` | Read action suggestions and deal counts |
+| GET | `/api/samples` | Read sample collaboration emails |
+| POST | `/api/assistant` | Answer a bounded question using workspace facts; limited to 8 requests per minute per client key |
+| GET | `/api/gmail/status` | Report whether Gmail is configured and connected |
+| GET | `/api/gmail/connect` | Begin Google OAuth for the approved creator account |
+| GET | `/api/gmail/callback` | Validate OAuth state, save encrypted refresh token, and start initial sync |
+| GET | `/api/gmail/messages` | List the connected creator's recent synced messages |
+| POST | `/api/gmail/disconnect` | Stop Gmail watch, revoke Google access, and remove the cached mailbox |
+| POST | `/api/gmail/webhook` | Verify Pub/Sub OIDC and sync Gmail history changes |
+| GET | `/api/gmail/renew` | Renew Gmail watch and catch up changes; called daily by Vercel Cron |
+
+The app has a single-owner Google OAuth session in production, but no multi-user workspace boundaries, real social metrics, publishing, invoicing, or voice/audio routes. Local demo mode is unauthenticated and should remain bound to loopback. Values in `server/data/db.json` are demo fixtures, not connected platform analytics.
+
+### Connect Gmail for incoming brand emails
+
+The Inbox offers a **Connect Gmail** button when the required server configuration is present. After authorization, CollabDesk imports up to 300 recent Inbox messages, stores a protected refresh token and cached message text in Supabase, and checks Gmail for changes through Google Cloud Pub/Sub. The Inbox refreshes its message list every five seconds. Cached message bodies are deleted after 30 days. Gmail watch subscriptions are renewed daily by the Vercel Cron job.
+
+This checkout is a **single-creator workspace**: set `GMAIL_ALLOWED_EMAIL` to the one Google account permitted to use it. Production routes require that account's signed, HTTP-only session. Do not enable the app for multiple creators until workspace deals and creator profiles are also stored per user.
+
+#### Google Cloud setup
+
+1. In Google Cloud Console, create or select a project and enable **Gmail API**. Configure the OAuth consent screen and create a **Web application** OAuth client. Add `https://YOUR_APP_DOMAIN/api/gmail/callback` as an authorized redirect URI. For local testing, add `http://127.0.0.1:3001/api/gmail/callback` and use that exact host for the frontend too.
+2. Create a Cloud Pub/Sub topic and grant `gmail-api-push@system.gserviceaccount.com` permission to publish to it.
+3. Create an authenticated push subscription to `https://YOUR_APP_DOMAIN/api/gmail/webhook`. Set its OIDC service account and audience to match `PUBSUB_PUSH_SERVICE_ACCOUNT` and `PUBSUB_PUSH_OIDC_AUDIENCE`. The Pub/Sub service agent needs permission to mint an OIDC token for that account.
+4. Set the variables in `.env.example` in the backend's local environment and in Vercel's **Production** environment. Generate `GMAIL_SESSION_SECRET` and `GMAIL_CRON_SECRET` as random secrets. Generate `GMAIL_TOKEN_ENCRYPTION_KEY` with `openssl rand -base64 32`; keep it stable because it decrypts stored refresh tokens. Set `GOOGLE_REDIRECT_URI` and `APP_ORIGIN` to the exact app host, and `GMAIL_ALLOWED_EMAIL` to the creator account.
+5. The additive migration [`supabase/migrations/20261024061151_gmail_inbox_sync.sql`](supabase/migrations/20261024061151_gmail_inbox_sync.sql) has been applied to the connected project. For another Supabase project, apply the same file. The tables have RLS enabled and no browser-role grants; backend service-key access is required. Keep `SUPABASE_SECRET_KEY` server-only.
+6. Redeploy after setting the Vercel variables. Once Google OAuth returns to `/inbox`, Gmail starts its initial sync. The Vercel Cron job calls `/api/gmail/renew` daily; set `GMAIL_CRON_SECRET` to Vercel's `CRON_SECRET` value or set both to the same secret.
+
+Gmail push notifications carry a history cursor, not the email body. CollabDesk uses Gmail's history API to fetch the actual changes. Google may delay or drop a notification, so scheduled watch renewal also performs a catch-up sync. Google's `gmail.readonly` scope is restricted and requires OAuth app verification for public use; storing or transmitting restricted-scope data can require a security assessment. Review [Gmail scope requirements](https://developers.google.com/workspace/gmail/api/auth/scopes), [server-side OAuth](https://developers.google.com/workspace/gmail/api/auth/web-server), and [push notification setup](https://developers.google.com/workspace/gmail/api/guides/push) before inviting other users.
+
+### Voice assistant
+
+The Voice assistant page shows the incoming Twilio webhook URL and reports whether signature validation, human transfer, and an AI provider are configured. Set `TWILIO_AUTH_TOKEN` and `VOICE_TRANSFER_NUMBER` as private Vercel Production variables, then point the Twilio number's incoming call webhook to `https://YOUR_APP_DOMAIN/api/voice/incoming` with HTTP POST. `VOICE_WEBHOOK_BASE_URL` should use the app's HTTPS origin. Without an AI provider, calls use the built-in short response fallback. For AI responses, configure `OPENAI_API_KEY` or an internet-reachable Ollama-compatible `OLLAMA_CHAT_URL`; set `OLLAMA_API_KEY` if that endpoint requires a bearer token. `localhost` is not reachable from Vercel. The webhook verifies Twilio signatures and rejects requests until the auth token is configured.

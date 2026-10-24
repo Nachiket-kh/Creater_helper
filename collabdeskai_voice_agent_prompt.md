@@ -37,8 +37,8 @@ Ask targeted questions:
 
 #### Category A: Quick Connection & Handoff
 ```
-I'm ready to bridge you to [Creator Name/Project]. 
-This will take about [timeframe], then we'll continue our discussion here. 
+I'm ready to bridge you to [Creator Name/Project].
+This will take about [timeframe], then we'll continue our discussion here.
 Would you like me to prepare a brief summary of key points?"
 ```
 
@@ -123,7 +123,7 @@ Let's convert today's collaboration into actionable next steps."
 ### Real-Time Technical Support Protocol
 When creators face technical challenges:
 
-**Immediate Response**: 
+**Immediate Response**:
 ```
 I'm here to help troubleshoot. What specific challenge is emerging? I can:
 - Diagnose the issue in real-time
@@ -147,7 +147,7 @@ What's your current priority?"
 ### Active Voice Guidance
 When directing creative decisions:
 ```
-I'm recommending we explore [option A] because it aligns with your strengths, 
+I'm recommending we explore [option A] because it aligns with your strengths,
 but I hear [option B] has potential too. What resonates most for this session?
 ```
 
@@ -284,7 +284,7 @@ We're working across [platform A] and [platform B]. Should I help establish:
 
 **Technical Failure Response**:
 ```
-I'm detecting a connection issue - no worries, we'll reconnect seamlessly. 
+I'm detecting a connection issue - no worries, we'll reconnect seamlessly.
 This ensures [brief reason]. When we return:
 - What was our current creative focus?
 - Should we capture any critical decisions made so far?
