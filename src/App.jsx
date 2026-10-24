@@ -289,10 +289,11 @@ function Today({ onOpen, onNavigate }) {
   const [data, setData] = useState(null);
   const [deals, setDeals] = useState([]);
   const [content, setContent] = useState(null);
+  const [contentLoading, setContentLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
     Promise.all([api.today(), api.deals()]).then(([today, result]) => { setData(today); setDeals(result.deals); }).catch((reason) => setError(reason.message));
-    api.content().then(setContent).catch(() => setContent(null));
+    api.content().then(setContent).catch(() => setContent(null)).finally(() => setContentLoading(false));
   }, []);
   if (error) return <ErrorMessage error={error} />;
   if (!data) return <Loading />;
@@ -307,7 +308,6 @@ function Today({ onOpen, onNavigate }) {
   const reels = (content?.posts || []).filter((post) => post.type?.toLowerCase() === "reel");
   const averageReach = reels.length ? Math.round(reels.reduce((sum, post) => sum + (Number(post.reach) || 0), 0) / reels.length) : 0;
   const averageSaves = reels.length ? Math.round(reels.reduce((sum, post) => sum + (Number(post.saves) || 0), 0) / reels.length) : 0;
-  const topReel = [...reels].sort((a, b) => (Number(b.reach) || 0) - (Number(a.reach) || 0))[0];
   const pulsePosts = [...reels].sort((a, b) => (Number(b.reach) || 0) - (Number(a.reach) || 0)).slice(0, 4);
   const maxReach = Math.max(1, ...pulsePosts.map((post) => Number(post.reach) || 0));
   const upcomingDeals = deals.filter((deal) => deal.deadline && !/no deadline|unclear/i.test(deal.deadline)).slice(0, 3);
@@ -326,7 +326,7 @@ function Today({ onOpen, onNavigate }) {
             {pulsePosts.map((post) => <div className="pulse-bar-row" key={post.id || post.title}><span title={post.title}>{post.title}</span><div className="pulse-bar-track"><i style={{ width: `${Math.max(6, Math.round(((Number(post.reach) || 0) / maxReach) * 100))}%` }} /></div><strong>{number(post.reach)}</strong></div>)}
           </div> : <p className="pulse-empty">Add Reels to your content library to see performance here.</p>}
           <p className="data-source-note"><span>i</span> Saved demo metrics · Instagram isn’t connected</p>
-        </> : <div className="pulse-skeleton" aria-label="Loading creator insights"><span /><span /><span /></div>}
+        </> : contentLoading ? <div className="pulse-skeleton" aria-label="Loading creator insights"><span /><span /><span /></div> : <p className="pulse-empty">Creator insights couldn’t load right now. Try refreshing your desk.</p>}
       </article>
       <article className="panel schedule-panel">
         <div className="section-heading"><div><div className="eyebrow">ON YOUR RADAR</div><h2>Deal deadlines</h2></div><span className="subtle-count">Saved in your desk</span></div>
