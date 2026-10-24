@@ -88,7 +88,7 @@ test("reply drafting, rates, content insights, and daily actions work", async ()
   assert.equal((await json("/api/deals/d-seed-bakery/reply", "POST", { intent: "send" })).response.status, 400);
 });
 
-test("reel script starter supports all advertised durations with contiguous scene timings", async () => {
+test("reel script starter supports all goals and durations with contiguous scene timings", async () => {
   for (const duration of [15, 30, 45, 60]) {
     const result = await json("/api/content/reel-script", "POST", { topic: "Cafe breakfast", duration, goal: "saves" });
     assert.equal(result.response.status, 200);
@@ -102,6 +102,13 @@ test("reel script starter supports all advertised durations with contiguous scen
       assert.ok(intervals[index][1] > intervals[index][0]);
       if (index > 0) assert.equal(intervals[index][0], intervals[index - 1][1]);
     }
+  }
+  for (const goal of ["reach", "comments", "brand awareness"]) {
+    const result = await json("/api/content/reel-script", "POST", { topic: "Cafe breakfast", duration: 30, goal, brand: "Vanaz Bakehouse" });
+    assert.equal(result.response.status, 200);
+    assert.match(result.payload.cta, goal === "reach" ? /Share this/ : goal === "comments" ? /comments/ : /closer look/);
+    assert.match(result.payload.scenes.at(-1).text, goal === "reach" ? /Share/ : goal === "comments" ? /Would you try/ : /Discover/);
+    assert.equal(result.payload.source, "starter");
   }
   assert.equal((await json("/api/content/reel-script", "POST", { topic: "x", duration: 10 })).response.status, 400);
 });

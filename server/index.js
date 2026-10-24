@@ -326,23 +326,36 @@ app.post("/api/content/reel-script", async (c) => {
     const beatOne = Math.round(duration * 0.2);
     const beatTwo = Math.round(duration * 0.5);
     const beatThree = Math.round(duration * 0.75);
-    const proof = topPost ? `Your ${topPost.topic} reel “${topPost.title}” earned ${Number(topPost.saves).toLocaleString("en-IN")} saves, so this version opens with a useful, specific detail.` : "Lead with one useful, specific detail before the reveal.";
-    const hooks = voice === "Playful Hinglish"
+    const proof = topPost ? `Your ${topPost.topic} ${topPost.type || "post"} “${topPost.title}” earned ${Number(topPost.saves).toLocaleString("en-IN")} saves, so this version opens with a useful, specific detail.` : "Lead with one useful, specific detail before the reveal.";
+    const subjectName = brand || topic;
+    const hooksByGoal = {
+      saves: [`Save this for your next ${topic.toLowerCase()} day.`, `A ${creator.city || "Pune"} ${topic.toLowerCase()} worth making time for`, `Here’s the one thing I’d know before trying ${topic.toLowerCase()}`],
+      reach: [`Wait for the reveal at ${topic}…`, `A closer look at ${topic} in ${creator.city || "Pune"}`, `Here’s why ${topic} caught my eye`],
+      comments: [`Would you try ${topic}?`, `${topic}: yes or no?`, `Pick one thing you’d order at ${topic}`],
+      "brand awareness": [`Meet ${subjectName}, in the details.`, `A closer look at ${subjectName}`, `Here’s what stood out about ${subjectName}`],
+    };
+    const hooks = voice === "Playful Hinglish" && goal === "saves"
       ? [`Pune mein ${topic}? Yeh idea save kar lo.`, `Okay, ${topic} ka honest review suno.`, `Mera favourite detail about ${topic}…`]
-      : voice === "Minimal and aesthetic"
+      : voice === "Minimal and aesthetic" && goal === "saves"
         ? [`A slower look at ${topic}.`, `${topic}, in the details.`, `The small detail that made this one.`]
-        : [`Save this for your next ${topic.toLowerCase()} day.`, `A ${creator.city || "Pune"} ${topic.toLowerCase()} worth making time for`, `Here’s the one thing I’d know before trying ${topic.toLowerCase()}`];
+        : hooksByGoal[goal];
     const openingLine = voice === "Playful Hinglish" ? `Agar ${topic} list mein hai, start yahin se.` : voice === "Minimal and aesthetic" ? `A closer look at ${topic}.` : `If ${topic.toLowerCase()} is on your list, start here.`;
+    const cta = goal === "comments" ? `Would you try ${topic}? Tell me why in the comments.`
+      : goal === "reach" ? `Share this with someone who'd love ${topic}.`
+        : goal === "brand awareness" ? `Take a closer look at ${subjectName} and tell me what stands out.`
+          : "Save this for later and tell me what I should try next.";
+    const firstOverlay = goal === "saves" ? "Save this idea ✨" : goal === "comments" ? "Your pick? ↓" : goal === "reach" ? "Send this to a friend ↗" : `Meet ${subjectName}`;
+    const finalOverlay = goal === "comments" ? "Would you try it? ↓" : goal === "reach" ? "Share with a friend ↗" : goal === "brand awareness" ? `Discover ${subjectName}` : "Save · Share · Tell me below";
     result = {
       hooks,
       scenes: [
-        { seconds: `0–${beatOne}s`, visual: "Open on the most satisfying close-up or finished result; hold the shot steady.", voiceover: openingLine, text: "Save this idea ✨" },
+        { seconds: `0–${beatOne}s`, visual: "Open on the most satisfying close-up or finished result; hold the shot steady.", voiceover: openingLine, text: firstOverlay },
         { seconds: `${beatOne}–${beatTwo}s`, visual: `Show the place, product, or setup behind ${subject} in one wide shot.`, voiceover: `I tried ${topic.toLowerCase()} so you can see what it’s really like.`, text: topic },
         { seconds: `${beatTwo}–${beatThree}s`, visual: "Cut to two quick detail shots, then the best payoff or practical tip.", voiceover: "Here’s the detail that made it worth sharing.", text: "The detail to remember" },
-        { seconds: `${beatThree}–${duration}s`, visual: "End on the result with a clean frame and a half-second pause.", voiceover: `Would you try it? Save this for later and tell me what I should check out next.`, text: "Save · Share · Tell me below" },
+        { seconds: `${beatThree}–${duration}s`, visual: "End on the result with a clean frame and a half-second pause.", voiceover: cta, text: finalOverlay },
       ],
-      caption: `${topic} in ${creator.city || "Pune"} ✨ ${proof} Save this for later — what should I try next?${brand ? `\n\nIn partnership with ${brand}.` : ""}`,
-      cta: "Save this for later and tell me what to try next.",
+      caption: `${topic} in ${creator.city || "Pune"} ✨ ${proof} ${cta}${brand ? `\n\nIn partnership with ${brand}.` : ""}`,
+      cta,
       rationale: proof,
     };
   }
