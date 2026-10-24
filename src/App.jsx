@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api.js";
 import { routeFor } from "./router.js";
 import Voice from "./pages/Voice.jsx";
+import collabDeskMark from "./assets/collabdesk-mark.svg";
 import "./pages/studio.css";
 
 const pages = [
@@ -104,7 +105,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <a href="/" className="brand-mark" onClick={(event) => { event.preventDefault(); navigate("/"); }}><span className="brand-glyph">c</span><span>collab<span className="brand-accent">desk</span></span></a>
+      <a href="/" className="brand-mark" aria-label="CollabDesk home" onClick={(event) => { event.preventDefault(); navigate("/"); }}><img className="brand-glyph" src={collabDeskMark} alt="" /><span className="brand-wordmark"><span>collab</span><span className="brand-accent">desk</span></span></a>
       <div className="creator-mini">
         <div className="avatar">{creator?.name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "AK"}</div>
         <div className="creator-mini-copy"><strong>{creator?.name || "Aanya Kulkarni"}</strong><span>{creator?.handle || "@aanya.eats.pune"}</span></div>

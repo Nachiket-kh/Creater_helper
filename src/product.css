@@ -27,8 +27,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 ::selection { color: #20251f; background: #f2d99f; }
 .app-shell { min-height: 100vh; }
 .sidebar { width: 248px; padding: 26px 18px 18px; background: #fff; border-right: 1px solid var(--line); box-shadow: 4px 0 24px #20251f05; }
-.brand-mark { gap: 11px; padding: 0 8px 28px; color: #25382c; font-size: 18px; letter-spacing: -.7px; }
-.brand-glyph { width: 34px; height: 34px; border-radius: 12px 12px 12px 4px; background: #e8bd67; color: #293b30; font: 800 21px Georgia, serif; }
+.brand-mark { display: flex; align-items: center; gap: 10px; padding: 0 8px 28px; color: #25382c; font-size: 18px; letter-spacing: -.7px; }
+.brand-glyph { display: block; flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; }
+.brand-wordmark { display: inline-flex; align-items: baseline; font-weight: 800; letter-spacing: -.8px; }
 .brand-accent { color: #9a6c1e; }
 .creator-mini { height: 68px; padding: 10px; margin-bottom: 28px; background: #f8f9f5; border: 1px solid var(--line); border-radius: 14px; }
 .avatar, .top-avatar, .kit-avatar { width: 38px; height: 38px; border: 0; background: #e8eee5; color: #3e6346; font-size: 13px; }
