@@ -12,10 +12,18 @@ function required(value, name) {
 }
 
 export function gmailConfig(env = process.env) {
+  // Vercel exposes the project's stable production hostname separately from
+  // the deployment-specific VERCEL_URL. Prefer it so OAuth callbacks from
+  // production always return to the canonical app domain.
+  const vercelHost = env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL || "";
+  const vercelOrigin = vercelHost ? `https://${vercelHost.replace(/^https?:\/\//, "")}` : "";
+  const appOrigin = env.APP_ORIGIN || (env.NODE_ENV === "production"
+    ? vercelOrigin
+    : "http://127.0.0.1:5173");
   return {
     clientId: env.GOOGLE_CLIENT_ID || "",
     clientSecret: env.GOOGLE_CLIENT_SECRET || "",
-    redirectUri: env.GOOGLE_REDIRECT_URI || "",
+    redirectUri: env.GOOGLE_REDIRECT_URI || (appOrigin ? `${appOrigin}/api/gmail/callback` : ""),
     allowedEmail: (env.GMAIL_ALLOWED_EMAIL || "").trim().toLowerCase(),
     sessionSecret: env.GMAIL_SESSION_SECRET || "",
     encryptionKey: env.GMAIL_TOKEN_ENCRYPTION_KEY || "",
@@ -23,7 +31,7 @@ export function gmailConfig(env = process.env) {
     pubSubAudience: env.PUBSUB_PUSH_OIDC_AUDIENCE || "",
     pubSubServiceAccount: (env.PUBSUB_PUSH_SERVICE_ACCOUNT || "").toLowerCase(),
     cronSecret: env.GMAIL_CRON_SECRET || env.CRON_SECRET || "",
-    appOrigin: env.APP_ORIGIN || (env.NODE_ENV === "production" ? "" : "http://127.0.0.1:5173"),
+    appOrigin,
   };
 }
 
