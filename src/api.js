@@ -7,7 +7,7 @@ async function request(path, options = {}) {
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
   } catch {
-    throw new Error("Could not reach CollabDesk. Make sure the API server is running.");
+    throw new Error("Could not reach Nexo. Make sure the API server is running.");
   }
   const data = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.error || `Request failed (${response.status}).`);
