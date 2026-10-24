@@ -14,6 +14,8 @@ const APP_CALLBACKS = new Set([
   "/api/gmail/webhook", "/api/gmail/renew",
   // These endpoints expose setup status or validate their own provider signature.
   "/api/voice/status", "/api/voice/incoming", "/api/voice/turn", "/api/voice/transfer-result",
+  // Browser voice replies enforce their own validation and rate limit.
+  "/api/voice/respond",
 ]);
 
 let storeInstance;

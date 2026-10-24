@@ -126,6 +126,7 @@ test("production workspace auth fails closed until configuration is complete", a
   registerGmailRoutes(app, { env: { NODE_ENV: "production", DATABASE_PROVIDER: "file" } });
   app.get("/api/creator", (c) => c.json({ name: "CollabDesk creator" }));
   app.get("/api/deals", (c) => c.json({ deals: [] }));
+  app.post("/api/voice/respond", (c) => c.json({ reply: "I can help with that." }));
   const status = await app.request("/api/gmail/status");
   assert.equal(status.status, 200);
   assert.equal((await status.json()).configured, false);
@@ -135,6 +136,9 @@ test("production workspace auth fails closed until configuration is complete", a
   assert.equal((await app.request("/api/deals")).status, 503);
   const messages = await app.request("/api/gmail/messages");
   assert.equal(messages.status, 503);
+  const voiceReply = await app.request("/api/voice/respond", { method: "POST" });
+  assert.equal(voiceReply.status, 200);
+  assert.deepEqual(await voiceReply.json(), { reply: "I can help with that." });
 });
 
 test("production workspace APIs require the approved creator session when configured", async () => {
