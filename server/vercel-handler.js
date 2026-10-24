@@ -25,6 +25,21 @@ export default async function handler(req, res) {
     }
 
     const url = new URL(req.url || '/', `https://${req.headers?.host || 'localhost'}`);
+    // Vercel's file-based API function mapping does not reliably send nested
+    // paths to one catch-all function in a Vite project. vercel.json rewrites
+    // /api/:path* to /api/handler?__vercel_path=:path*, preserving the route
+    // here so Hono receives the original URL and callback query parameters.
+    const routePath = url.searchParams.get('__vercel_path');
+    if (routePath !== null) {
+      url.searchParams.delete('__vercel_path');
+      const target = new URL(`/api/${routePath.replace(/^\/+/, '')}`, url.origin);
+      url.searchParams.forEach((value, key) => target.searchParams.append(key, value));
+      const response = await app.fetch(new Request(target, init));
+      response.headers.forEach((value, key) => res.setHeader(key, value));
+      res.statusCode = response.status;
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
     const response = await app.fetch(new Request(url, init));
     response.headers.forEach((value, key) => res.setHeader(key, value));
     res.statusCode = response.status;
