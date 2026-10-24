@@ -36,6 +36,7 @@ Set these values in Vercel Project Settings → Environment Variables, then rede
 - `VOICE_WEBHOOK_BASE_URL`: the canonical HTTPS origin for the deployment, such as `https://your-app.vercel.app` (no path).
 - `OLLAMA_CHAT_URL`: optional public Ollama-compatible `/api/chat` endpoint for AI-generated conversation turns. A local `localhost` URL is unreachable from Vercel; without a public model endpoint, the call assistant uses its built-in fallback responses.
 - `OLLAMA_MODEL`: optional model name; defaults to `qwen3.5:4b`.
+- `OLLAMA_API_KEY`: optional bearer token for endpoints that require it. Store it as a Vercel Secret; the backend adds the `Authorization: Bearer …` header without exposing it to the frontend.
 - `VOICE_SESSION_SECRET`: optional private secret for encrypting temporary call context; defaults to a key derived from `TWILIO_AUTH_TOKEN`.
 
 Keep all credentials in Vercel settings, never in GitHub. The assistant does not record calls or perform actions in external accounts.

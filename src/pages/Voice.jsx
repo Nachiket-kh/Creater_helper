@@ -50,7 +50,7 @@ export default function Voice() {
           <div className="voice-webhook"><div><span className="field-label">INCOMING VOICE WEBHOOK · HTTP POST</span><code>{webhookUrl}</code></div><Button size="sm" variant="secondary" onClick={copyWebhook}>{copied ? 'Copied' : 'Copy URL'}</Button></div>
           <ol className="voice-steps">
             <li><span>1</span><div><strong>Add private Vercel environment variables</strong><p><code>TWILIO_AUTH_TOKEN</code> validates calls from Twilio.</p><p><code>VOICE_TRANSFER_NUMBER</code> is the human handoff destination.</p><p><code>VOICE_WEBHOOK_BASE_URL</code> should be set to this site’s HTTPS origin.</p></div></li>
-            <li><span>2</span><div><strong>Enable the voice model</strong><p>Set <code>OLLAMA_CHAT_URL</code> to a public Ollama-compatible chat endpoint. The local computer’s localhost URL cannot be reached by Vercel.</p></div></li>
+            <li><span>2</span><div><strong>Enable the voice model</strong><p>Set <code>OLLAMA_CHAT_URL</code> to a public Ollama-compatible chat endpoint. The local computer’s localhost URL cannot be reached by Vercel.</p><p>If your provider requires a bearer token, add <code>OLLAMA_API_KEY</code> as a Vercel Secret. CollabDesk sends it from the server and never returns it to the browser.</p></div></li>
             <li><span>3</span><div><strong>Point Twilio at this webhook</strong><p>In the Twilio number’s Voice settings, set “A call comes in” to the URL above and choose HTTP POST.</p></div></li>
           </ol>
           <div className="voice-private-note"><span>🔒</span><p>Keep Twilio secrets in Vercel Environment Variables. Do not paste them into this page or commit them to GitHub.</p></div>

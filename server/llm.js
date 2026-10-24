@@ -1,5 +1,6 @@
 const chatUrl = process.env.OLLAMA_CHAT_URL || 'http://localhost:11434/api/chat';
 const model = process.env.OLLAMA_MODEL || 'qwen3.5:4b';
+const apiKey = process.env.OLLAMA_API_KEY;
 const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) > 0 ? Number(process.env.OLLAMA_TIMEOUT_MS) : 60000;
 
 export async function askJSON(prompt, options = {}) {
@@ -11,7 +12,10 @@ export async function askJSON(prompt, options = {}) {
     const response = await fetch(chatUrl, {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+      },
       body: JSON.stringify({
         model,
         stream: false,
@@ -20,7 +24,7 @@ export async function askJSON(prompt, options = {}) {
         messages: [{ role: 'user', content: prompt }]
       })
     });
-    if (!response.ok) throw new Error(`Local model request failed (${response.status})`);
+    if (!response.ok) throw new Error(`Model endpoint request failed (${response.status})`);
     const payload = await response.json();
     const content = payload.message?.content;
     if (typeof content !== 'string') throw new Error('Local model returned no message');
