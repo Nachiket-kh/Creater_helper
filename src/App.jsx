@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { routeFor } from "./router.js";
 import Voice from "./pages/Voice.jsx";
 import UIKitPage from "./pages/UIKitPage.jsx";
+import "./pages/studio.css";
 
 const pages = [
   { id: "today", label: "Today", icon: "◷", href: "/" },
@@ -121,7 +122,7 @@ export default function App() {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {route.page === "detail" ? "Deal details" : pages.find((page) => page.id === route.page)?.label || "Not found"}</div><div className="topbar-right"><span className="today-date">{new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span><button className="icon-button" aria-label="Refresh workspace" title="Refresh workspace" onClick={reload}><Icon>↻</Icon></button><div className="top-avatar" aria-label={creator?.name || "Creator account"}>{creator?.name?.slice(0, 1) || "A"}</div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {route.page === "detail" ? "Deal details" : pages.find((page) => page.id === route.page)?.label || "Not found"}</div><div className="topbar-right"><button className="voice-shortcut" onClick={() => navigate("/voice")} aria-label="Open voice assistant">☎ <span>Voice assistant</span></button><span className="today-date">{new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span><button className="icon-button" aria-label="Refresh workspace" title="Refresh workspace" onClick={reload}><Icon>↻</Icon></button><div className="top-avatar" aria-label={creator?.name || "Creator account"}>{creator?.name?.slice(0, 1) || "A"}</div></div></header>
       <div className="page-content"><ErrorMessage error={workspaceError} />
         {route.page === "today" && <Today key={refresh} onOpen={openDeal} onNavigate={navigate} />}
         {route.page === "inbox" && <Inbox key={refresh} onOpen={openDeal} />}
@@ -349,8 +350,31 @@ function Fact({ label, value }) { return <div className="fact"><span>{label}</sp
 function Content() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [repo, setRepo] = useState("Nachiket-kh/Creater_helper");
+  const [creatorType, setCreatorType] = useState("video_creator");
+  const [platform, setPlatform] = useState("x");
+  const [draft, setDraft] = useState(null);
+  const [draftError, setDraftError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
   useEffect(() => { api.content().then(setData).catch((reason) => setError(reason.message)); }, []);
-  return <><PageTitle eyebrow="CONTENT PULSE" title="Your work speaks." subtitle="A closer look at the posts people are spending time with." />{error ? <ErrorMessage error={error} /> : !data ? <Loading /> : <><div className="insight-banner"><div className="insight-mark">✳</div><div><div className="eyebrow">THE SIGNAL</div><h2>{data.insight}</h2></div><div className="insight-averages"><div><span>Food average</span><strong>{number(data.averages.food)}</strong><small>reach</small></div><div><span>Beauty average</span><strong>{number(data.averages.beauty)}</strong><small>reach</small></div></div></div><section className="panel content-panel"><div className="section-heading"><div><div className="eyebrow">YOUR LIBRARY</div><h2>Posts & reels</h2></div><span className="subtle-count">{data.posts.length} posts</span></div><div className="table-wrap"><table><thead><tr><th>Post</th><th>Format</th><th>Topic</th><th>Reach</th><th>Saves</th><th>Collab</th></tr></thead><tbody>{data.posts.map((post) => <tr key={post.id}><td><span className={`post-icon topic-${post.topic}`}>{post.topic === "food" ? "✳" : post.topic === "beauty" ? "✦" : "↗"}</span><strong>{post.title}</strong></td><td><span className="format-tag">{post.type}</span></td><td className="topic-cell">{post.topic}</td><td>{number(post.reach)}</td><td>{number(post.saves)}</td><td><span className={`collab-tag ${post.collab ? "is-collab" : ""}`}>{post.collab ? "Partnered" : "Organic"}</span></td></tr>)}</tbody></table></div></section></>}</>;
+  async function generateDraft() {
+    setGenerating(true); setDraftError(""); setDraft(null);
+    try { setDraft(await api.generateStudioDraft({ repo: repo.trim(), creatorType, platform })); }
+    catch (reason) { setDraftError(reason.message); }
+    finally { setGenerating(false); }
+  }
+  async function copyDraft() {
+    if (!draft?.result?.draft) return;
+    try { await navigator.clipboard.writeText(`${draft.result.title}\n\n${draft.result.draft}`); setCopied(true); window.setTimeout(() => setCopied(false), 1600); }
+    catch { setDraftError("Clipboard access is unavailable. Select and copy the draft text."); }
+  }
+  return <><PageTitle eyebrow="CONTENT PULSE" title="Your work speaks." subtitle="A closer look at the posts people are spending time with." />{error ? <ErrorMessage error={error} /> : !data ? <Loading /> : <><div className="insight-banner"><div className="insight-mark">✳</div><div><div className="eyebrow">THE SIGNAL</div><h2>{data.insight}</h2></div><div className="insight-averages"><div><span>Food average</span><strong>{number(data.averages.food)}</strong><small>reach</small></div><div><span>Beauty average</span><strong>{number(data.averages.beauty)}</strong><small>reach</small></div></div></div>
+    <section className="panel content-panel studio-panel"><div className="section-heading"><div><div className="eyebrow">GITHUB CREATOR STUDIO</div><h2>Turn repository changes into a draft</h2></div><span className="format-tag">Public repository</span></div><p className="studio-intro">Use recent commits, pull requests, discussions, and releases to shape a draft for your creator style and platform.</p><div className="studio-controls"><label><span className="field-label">GitHub repository</span><input value={repo} onChange={(event) => setRepo(event.target.value)} placeholder="owner/repository" autoComplete="off" /></label><label><span className="field-label">Creator style</span><select value={creatorType} onChange={(event) => setCreatorType(event.target.value)}><option value="tutorial_creator">Tutorial creator</option><option value="tech_blogger">Tech blogger</option><option value="video_creator">Video creator</option><option value="social_media_scholar">Social media creator</option></select></label><label><span className="field-label">Platform</span><select value={platform} onChange={(event) => setPlatform(event.target.value)}><option value="github">GitHub</option><option value="x">X</option><option value="youtube">YouTube</option><option value="medium">Medium / Dev.to</option></select></label><button className="primary-button" onClick={generateDraft} disabled={generating || !repo.trim()}>{generating ? "Reading repository…" : "Generate draft ↗"}</button></div>
+      {draftError && <ErrorMessage error={draftError} />}
+      {draft && <div className="studio-result"><div className="studio-result-title"><div><span className="eyebrow">{draft.repo.name} · {platform.toUpperCase()}</span><h3>{draft.result.title}</h3></div><span className="format-tag">{draft.source === "ai" ? "AI draft" : "Local draft"}</span></div><p className="studio-hook">{draft.result.hook}</p><pre className="studio-draft">{draft.result.draft}</pre><div className="studio-result-actions"><span>{draft.result.tags.map((tag) => `#${tag.replace(/^#/, "")}`).join("  ")}</span><button className="secondary-button" onClick={copyDraft}>{copied ? "Copied ✓" : "Copy draft"}</button></div>{draft.sources.length > 0 && <div className="studio-sources"><strong>Repository sources</strong>{draft.sources.slice(0, 4).map((source) => <a key={`${source.type}-${source.url}`} href={source.url} target="_blank" rel="noreferrer">{source.type} · {source.title} ↗</a>)}</div>}{draft.source === "fallback" && <p className="subtle-count">The model is unavailable, so this draft uses a local template. Set a public model URL to enable AI generation.</p>}</div>}
+      <p className="studio-footnote">Drafts are for review and copying; CollabDesk does not publish or schedule posts. Repository content is treated as source text, not instructions.</p></section>
+    <section className="panel content-panel"><div className="section-heading"><div><div className="eyebrow">YOUR LIBRARY</div><h2>Posts & reels</h2></div><span className="subtle-count">{data.posts.length} posts</span></div><div className="table-wrap"><table><thead><tr><th>Post</th><th>Format</th><th>Topic</th><th>Reach</th><th>Saves</th><th>Collab</th></tr></thead><tbody>{data.posts.map((post) => <tr key={post.id}><td><span className={`post-icon topic-${post.topic}`}>{post.topic === "food" ? "✳" : post.topic === "beauty" ? "✦" : "↗"}</span><strong>{post.title}</strong></td><td><span className="format-tag">{post.type}</span></td><td className="topic-cell">{post.topic}</td><td>{number(post.reach)}</td><td>{number(post.saves)}</td><td><span className={`collab-tag ${post.collab ? "is-collab" : ""}`}>{post.collab ? "Partnered" : "Organic"}</span></td></tr>)}</tbody></table></div></section></>}</>;
 }
 
 function Kit({ creator, onSaved }) {

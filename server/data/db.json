@@ -79,6 +79,54 @@
       "usageDays": 30,
       "status": "new",
       "createdAt": "2026-10-23T15:44:43.672Z"
+    },
+    {
+      "id": "d-seed-metro-bite",
+      "brand": "MetroBite Franchise",
+      "intent": "paid_collab",
+      "format": "reel",
+      "budgetInr": 32000,
+      "deadline": "in 14 days",
+      "deliverables": [
+        "1 launch reel",
+        "3 stories"
+      ],
+      "summary": "Pune franchise launch coverage for two new MetroBite locations.",
+      "status": "new",
+      "usageDays": 30,
+      "createdAt": "2026-10-24T08:00:00.000Z"
+    },
+    {
+      "id": "d-seed-chai-junction",
+      "brand": "Chai Junction",
+      "intent": "paid_collab",
+      "format": "reel",
+      "budgetInr": 18000,
+      "deadline": "next month",
+      "deliverables": [
+        "1 reel",
+        "2 stories"
+      ],
+      "summary": "Paid coverage for a new Chai Junction franchise outlet.",
+      "status": "new",
+      "usageDays": 30,
+      "createdAt": "2026-10-24T08:01:00.000Z"
+    },
+    {
+      "id": "d-seed-food-festival",
+      "brand": "Pune Food Festival",
+      "intent": "paid_collab",
+      "format": "reel",
+      "budgetInr": 24000,
+      "deadline": "in three weeks",
+      "deliverables": [
+        "1 reel",
+        "3 stories"
+      ],
+      "summary": "Paid event coverage for Pune Food Festival.",
+      "status": "new",
+      "usageDays": 30,
+      "createdAt": "2026-10-24T08:02:00.000Z"
     }
   ],
   "posts": [

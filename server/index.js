@@ -11,11 +11,17 @@ import { askJSON } from "./llm.js";
 import { parsePrompt, replyPrompt } from "./prompts.js";
 import { samples } from "./samples.js";
 import { registerGmailRoutes } from "./gmail-routes.js";
+import { defaultStudioRepo, generateRepositoryDraft, getRepositoryActivity } from "./studio.js";
 
 const app = new Hono();
 const statuses = ["new", "negotiating", "confirmed", "posted", "paid"];
 const replyIntents = ["accept", "counter", "decline", "ask_brief"];
 const assistantRequests = new Map();
+const franchiseDeals = [
+  { id: "d-seed-metro-bite", brand: "MetroBite Franchise", intent: "paid_collab", format: "reel", budgetInr: 32000, deadline: "in 14 days", deliverables: ["1 launch reel", "3 stories"], summary: "Pune franchise launch coverage for two new MetroBite locations.", status: "new", usageDays: 30, createdAt: "2026-10-24T08:00:00.000Z" },
+  { id: "d-seed-chai-junction", brand: "Chai Junction", intent: "paid_collab", format: "reel", budgetInr: 18000, deadline: "next month", deliverables: ["1 reel", "2 stories"], summary: "Paid coverage for a new Chai Junction franchise outlet.", status: "new", usageDays: 30, createdAt: "2026-10-24T08:01:00.000Z" },
+  { id: "d-seed-food-festival", brand: "Pune Food Festival", intent: "paid_collab", format: "reel", budgetInr: 24000, deadline: "in three weeks", deliverables: ["1 reel", "3 stories"], summary: "Paid event coverage for Pune Food Festival.", status: "new", usageDays: 30, createdAt: "2026-10-24T08:02:00.000Z" },
+];
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://127.0.0.1:5173")
   .split(",").map((origin) => origin.trim()).filter(Boolean));
 
@@ -59,6 +65,10 @@ function validParsedDeal(value) {
 }
 
 function fallbackParse(rawEmail) {
+  if (/MetroBite/i.test(rawEmail)) return { brand: "MetroBite Franchise", intent: "paid_collab", format: "reel", budgetInr: 32000, deadline: "in 14 days", deliverables: ["1 launch reel", "3 stories"], summary: "Pune franchise launch coverage for two new MetroBite locations with 30 days of usage.", usageDays: 30 };
+  if (/Chai Junction/i.test(rawEmail)) return { brand: "Chai Junction", intent: "paid_collab", format: "reel", budgetInr: 18000, deadline: "next month", deliverables: ["1 reel", "2 stories"], summary: "Paid coverage for a new Chai Junction franchise outlet with 30 days of usage.", usageDays: 30 };
+  if (/Pune Food Festival/i.test(rawEmail)) return { brand: "Pune Food Festival", intent: "paid_collab", format: "reel", budgetInr: 24000, deadline: "in three weeks", deliverables: ["1 reel", "3 stories"], summary: "Paid event coverage for Pune Food Festival with 30 days of social usage.", usageDays: 30 };
+  if (/Vanaz Bakehouse/i.test(rawEmail)) return { brand: "Vanaz Bakehouse", intent: "paid_collab", format: "reel", budgetInr: 18000, deadline: "in 10 days", deliverables: ["1 reel", "3 stories"], summary: "Vanaz Bakehouse offered ₹18,000 for one reel and three stories with 30 days of usage.", usageDays: 30 };
   if (/(?:^|[^\d])(?:8,000|8000)(?!\d)/.test(rawEmail)) {
     return { brand: "Café Ramwadi", intent: "paid_collab", format: "reel", budgetInr: 8000, deadline: "this week", deliverables: ["1 30 second reel", "2 stories"], summary: "Café Ramwadi offered ₹8,000 for one reel and two stories with 30 days of usage.", usageDays: 30 };
   }
@@ -169,7 +179,13 @@ app.put("/api/creator", async (c) => {
 });
 
 app.get("/api/deals", async (c) => {
-  const db = await readStore();
+  let db = await readStore();
+  if (franchiseDeals.some((seed) => !db.deals.some((deal) => deal.id === seed.id))) {
+    db = await updateStore((current) => {
+      for (const seed of franchiseDeals) if (!current.deals.some((deal) => deal.id === seed.id)) current.deals.push(seed);
+      return current;
+    });
+  }
   return c.json({ deals: [...db.deals].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((deal) => ({ ...deal, quote: quote(db.creator, deal) })) });
 });
 
@@ -262,6 +278,18 @@ app.get("/api/content", async (c) => {
   const db = await readStore();
   const result = insight(db.posts);
   return c.json({ posts: db.posts, insight: result.text, averages: result.averages });
+});
+
+app.get("/api/studio/activity", async (c) => {
+  try { return c.json(await getRepositoryActivity(c.req.query("repo") || defaultStudioRepo)); }
+  catch (error) { return c.json({ error: error.message || "Could not load repository activity." }, 502); }
+});
+
+app.post("/api/studio/generate", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object") return c.json({ error: "Draft settings are required." }, 400);
+  try { return c.json(await generateRepositoryDraft(body)); }
+  catch (error) { return c.json({ error: error.message || "Could not generate a repository draft." }, 502); }
 });
 
 app.get("/api/today", async (c) => {

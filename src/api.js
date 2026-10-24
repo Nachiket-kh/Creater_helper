@@ -31,4 +31,5 @@ export const api = {
   gmailMessage: (id) => request(`/gmail/messages/${encodeURIComponent(id)}`),
   disconnectGmail: () => request("/gmail/disconnect", { method: "POST" }),
   voiceStatus: () => request("/voice/status"),
+  generateStudioDraft: (settings) => request("/studio/generate", { method: "POST", body: settings }),
 };
