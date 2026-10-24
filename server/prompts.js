@@ -32,9 +32,10 @@ ${rawEmail}
 }
 
 export function replyPrompt(intent, deal, suggestedInr) {
-  return `You write short emails for creator Aanya Kulkarni (@aanya.eats.pune), niche Pune food and city life.
-Return JSON only: { "subject": string, "body": string }
-The body is plain text, under 120 words, warm and direct, no hashtags, no emojis, no legal clauses.
+  const formattedFee = `₹${suggestedInr.toLocaleString("en-IN")}`;
+  return `Write a polished, natural email reply for creator Aanya Kulkarni (@aanya.eats.pune), who creates Pune food and city-life content.
+Return one JSON object only: { "subject": string, "body": string }.
+Write like a thoughtful person replying to a real business email: warm, concise, confident, and specific. Use plain text, 45–90 words, a simple greeting, short paragraphs, and a natural sign-off. Avoid stiff or repetitive language, filler, excessive apologies, hashtags, emojis, and legal wording. Never say both that she accepts and declines. Do not invent a recipient name or facts.
 
 Facts you must obey:
 - Intent of this draft: ${intent}
@@ -42,15 +43,54 @@ Facts you must obey:
 - Their budget: ${deal.budgetInr ?? "none"}
 - Deliverables: ${deal.deliverables.join(", ")}
 - Deadline: ${deal.deadline}
-- Her fee, already decided, is ₹${suggestedInr}. Never change this number.
+- Her fee, already decided, is ${formattedFee}. Use this exact currency formatting whenever stating her fee; never change the amount.
 - Usage included: ${deal.usageDays} days. Do not offer more.
 
-If intent is counter, say their offer is below her usual fee and state ₹${suggestedInr} exactly.
-If intent is decline, do not negotiate.
-If intent is accept, confirm deliverables, deadline, and fee.
-If intent is ask_brief, ask for the product, the posting date, and usage days.
+Intent-specific instructions (follow only the selected intent; never mix intents):
+- counter: Follow this order: greeting; thank them for the offer; say she’d be happy to create ${deal.deliverables.join(" and ")} for ${formattedFee}, including ${deal.usageDays} days of usage; ask “Would that work for your budget?”; sign off. This is a negotiation, not a rejection. Do not say decline, pass, regret, or that she cannot proceed. Do not ask other questions or request more brief details.
+- decline: Politely and clearly say she has to pass on the collaboration. Do not say she is happy or willing to create the deliverables, accept the offer, negotiate, or quote a fee. Thank them and close warmly.
+- accept: Clearly confirm that she accepts. Include every deliverable exactly as listed (${deal.deliverables.join("; ")}), the deadline (${deal.deadline}), the fee (${formattedFee}), and the usage period (${deal.usageDays} days). Do not ask whether these terms work; the offer is accepted.
+- ask_brief: Do not accept, decline, or counter and do not quote a fee. Ask questions about the product, posting date, and requested usage period before deciding.
 
 Deal summary: ${deal.summary}`;
+}
+
+export function isUsableReplyDraft(reply, intent, suggestedInr, deal) {
+  if (!reply || typeof reply.subject !== "string" || !reply.subject.trim() || reply.subject.length > 300 ||
+      typeof reply.body !== "string" || !reply.body.trim() || reply.body.length > 5000) return false;
+
+  const body = reply.body.toLowerCase();
+  const fee = Number(suggestedInr).toLocaleString("en-IN");
+  const hasFee = [`₹${fee}`, `₹${suggestedInr}`].some((amount) => reply.body.includes(amount));
+  if (intent === "accept") {
+    const allDeliverables = deal?.deliverables?.every((item) => body.includes(item.toLowerCase()));
+    const deadline = deal?.deadline && body.includes(deal.deadline.toLowerCase());
+    const usage = deal?.usageDays != null && body.includes(`${deal.usageDays} days`);
+    const asksForApproval = /\?|would that work|does that work|if that works/.test(body);
+    return hasFee && allDeliverables && deadline && usage && /\b(accept|confirm|happy to proceed)\b/.test(body) && !asksForApproval;
+  }
+  if (intent === "counter") {
+    const contradictsCounter = /\b(regret|declin(?:e|ing)|pass on|cannot proceed|can't proceed|unable to proceed)\b/.test(body);
+    const asksToProceed = /\b(if that works for your budget|would that work for your budget|does that work for your budget|could you confirm that works for your budget)\b/i.test(reply.body);
+    const addsBriefQuestions = /\b(product|posting date|requested usage period|what date|tell me more)\b/i.test(reply.body);
+    const allDeliverables = deal?.deliverables?.every((item) => body.includes(item.toLowerCase()));
+    const usage = deal?.usageDays != null && body.includes(`${deal.usageDays} days`);
+    return !contradictsCounter && hasFee && asksToProceed && !addsBriefQuestions && allDeliverables && usage;
+  }
+  if (intent === "decline") {
+    const clearlyPasses = /\b(pass on|decline|not able to take|won't be able to|will have to pass)\b/.test(body);
+    const alsoAccepts = /\b(happy|glad|delighted|pleased) to (?:create|do|work|offer|accept)|\baccept(?:ing)? the offer\b|\bmove forward\b/.test(body);
+    return clearlyPasses && !alsoAccepts && !hasFee;
+  }
+  if (intent === "ask_brief") {
+    const asksQuestions = body.includes("?");
+    const asksProduct = /\bproduct\b/.test(body);
+    const asksDate = /\b(posting date|post date|publish(?:ing)? date|when .*post)\b/.test(body);
+    const asksUsage = /\b(usage|usage period|usage days)\b/.test(body);
+    const takesPosition = /\b(accept|declin(?:e|ing)|counter offer|my fee is|would that work for your budget)\b/.test(body);
+    return asksQuestions && asksProduct && asksDate && asksUsage && !takesPosition && !hasFee;
+  }
+  return false;
 }
 
 export function voiceAgentPrompt(history, callerText) {

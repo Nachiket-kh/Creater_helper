@@ -19,6 +19,20 @@
 .voice-hero-state { position: absolute; right: 22px; top: 20px; display: flex; align-items: center; gap: 8px; color: #475569; font-size: 11px; font-weight: 650; }
 .voice-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgb(34 197 94 / 12%); }
 .voice-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); align-items: start; gap: 20px; margin-top: 22px; }
+.voice-demo-card { margin-top: 20px; }
+.voice-demo-card .ui-card__content { display: grid; gap: 13px; }
+.voice-demo-note,.voice-demo-error { margin: 0; color: #9a5a24; font-size: 12px; line-height: 1.5; }
+.voice-demo-note code { padding: 2px 5px; border: 1px solid #e2e8f0; border-radius: 5px; color: #4338ca; background: #f8fafc; font-size: 11px; }
+.voice-demo-transcript { display: grid; gap: 9px; max-height: 260px; overflow: auto; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.voice-demo-transcript p { display: grid; gap: 4px; margin: 0; color: #475569; font-size: 12px; line-height: 1.55; }
+.voice-demo-transcript strong { color: #3730a3; font-size: 10px; }
+.voice-demo-user { text-align: right; }
+.voice-demo-user strong { color: #64748b; }
+.voice-demo-empty { color: #94a3b8 !important; }
+.voice-demo-form { display: grid; gap: 10px; }
+.voice-demo-form textarea { width: 100%; resize: vertical; padding: 12px 13px; border: 1px solid #dfe4dc; border-radius: 11px; background: #fff; color: #293129; font: inherit; font-size: 13px; line-height: 1.55; }
+.voice-demo-form textarea:focus-visible { outline: 3px solid rgb(99 102 241 / 25%); outline-offset: 2px; }
+.voice-demo-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .voice-card { border-radius: 14px; }
 .voice-card .ui-card__header { padding: 22px 22px 0; }
 .voice-card .ui-card__content { padding: 20px 22px 22px; }

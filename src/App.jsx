@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api.js";
 import { routeFor } from "./router.js";
 import Voice from "./pages/Voice.jsx";
-import UIKitPage from "./pages/UIKitPage.jsx";
 import "./pages/studio.css";
 
 const pages = [
@@ -12,7 +11,6 @@ const pages = [
   { id: "content", label: "Content", icon: "▦", href: "/content" },
   { id: "kit", label: "Media kit", icon: "▧", href: "/kit" },
   { id: "voice", label: "Voice assistant", icon: "☎", href: "/voice" },
-  { id: "ui-kit", label: "UI kit", icon: "◇", href: "/ui-kit" },
 ];
 const statuses = ["new", "negotiating", "confirmed", "posted", "paid"];
 const statusLabels = { new: "New", negotiating: "Negotiating", confirmed: "Confirmed", posted: "Posted", paid: "Paid" };
@@ -85,8 +83,6 @@ export default function App() {
   const [refresh, setRefresh] = useState(0);
   const route = useMemo(() => routeFor(path), [path]);
 
-  if (route.page === "ui-kit") return <UIKitPage go={(href) => { window.history.pushState({}, "", href); setPath(window.location.pathname); }} />;
-
   const navigate = useCallback((href) => {
     window.history.pushState({}, "", href);
     setPath(window.location.pathname);
@@ -145,9 +141,16 @@ function DeskAssistant({ page }) {
   const [answer, setAnswer] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mayaListening, setMayaListening] = useState(false);
+  const [mayaActive, setMayaActive] = useState(false);
   const launcherRef = useRef(null);
   const inputRef = useRef(null);
-  const suggestions = ["Which offer is below my rate?", "What should I follow up on?", "What content performs best?"];
+  const recognitionRef = useRef(null);
+  const mayaListeningRef = useRef(false);
+  const mayaActiveRef = useRef(false);
+  const assistantSpeakingRef = useRef(false);
+  const askRef = useRef(null);
+  const suggestions = ["How are my Reels performing?", "What new deals came in?", "Summarize my schedule and deadlines"];
   useEffect(() => {
     if (!open) return undefined;
     inputRef.current?.focus();
@@ -155,34 +158,141 @@ function DeskAssistant({ page }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
-  async function ask(value = question) {
-    const prompt = value.trim();
+  useEffect(() => () => {
+    mayaListeningRef.current = false;
+    recognitionRef.current?.stop();
+    window.speechSynthesis?.cancel();
+  }, []);
+  function speakMaya(text) {
+    if (!("speechSynthesis" in window)) return;
+    assistantSpeakingRef.current = true;
+    recognitionRef.current?.stop();
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    const resumeListening = () => {
+      assistantSpeakingRef.current = false;
+      if (!mayaListeningRef.current || !recognitionRef.current) return;
+      window.setTimeout(() => {
+        if (!mayaListeningRef.current || !recognitionRef.current) return;
+        try { recognitionRef.current.start(); } catch { /* The browser may still be releasing the microphone. */ }
+      }, 250);
+    };
+    utterance.onend = resumeListening;
+    utterance.onerror = resumeListening;
+    window.speechSynthesis.speak(utterance);
+  }
+  async function ask(value = question, speak = false) {
+    const prompt = value.trim().slice(0, 500);
     if (!prompt || loading) return;
     setQuestion(prompt); setError(""); setLoading(true);
-    try { setAnswer(await api.assistant(prompt, page)); }
+    try {
+      const result = await api.assistant(prompt, page);
+      setAnswer(result);
+      if (speak) speakMaya(result.answer);
+    }
     catch (reason) { setError(reason.message); }
     finally { setLoading(false); }
   }
+  askRef.current = ask;
+  function toggleMaya() {
+    if (mayaListeningRef.current) {
+      mayaListeningRef.current = false;
+      mayaActiveRef.current = false;
+      recognitionRef.current?.stop();
+      setMayaListening(false);
+      setMayaActive(false);
+      assistantSpeakingRef.current = false;
+      window.speechSynthesis?.cancel();
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError("Maya voice activation is not supported in this browser. You can still type your question.");
+      setOpen(true);
+      return;
+    }
+    setError("");
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        if (!event.results[index].isFinal) continue;
+        const transcript = event.results[index][0]?.transcript?.trim();
+        if (!transcript) continue;
+        const wake = transcript.match(/\bmaya\b[\s,.:;!?-]*(.*)/i);
+        if (!mayaActiveRef.current && !wake) continue;
+        let command = transcript;
+        if (!mayaActiveRef.current) {
+          mayaActiveRef.current = true;
+          setMayaActive(true);
+          setOpen(true);
+          command = wake?.[1]?.trim() || "";
+          if (!command) {
+            speakMaya("I'm listening. What would you like to know?");
+            continue;
+          }
+        } else {
+          command = transcript.replace(/\bmaya\b/i, "").trim() || transcript;
+        }
+        setOpen(true);
+        askRef.current?.(command, true);
+      }
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        mayaListeningRef.current = false;
+        setMayaListening(false);
+        setMayaActive(false);
+        mayaActiveRef.current = false;
+        setError("Allow microphone access in your browser to use Maya voice activation.");
+      }
+    };
+    recognition.onend = () => {
+      if (!mayaListeningRef.current || assistantSpeakingRef.current) return;
+      window.setTimeout(() => {
+        if (!mayaListeningRef.current) return;
+        try { recognition.start(); } catch { /* The browser may still be releasing the microphone. */ }
+      }, 250);
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      mayaListeningRef.current = true;
+      mayaActiveRef.current = false;
+      setMayaListening(true);
+      setMayaActive(false);
+      setOpen(true);
+    } catch {
+      setError("Could not start voice activation. Check microphone permission, then try again.");
+    }
+  }
   return <>
     {open && <section id="desk-assistant-panel" className="assistant-panel" role="dialog" aria-modal="false" aria-labelledby="assistant-title">
-      <div className="assistant-heading"><span className="assistant-mark"><Icon>✳</Icon></span><div><h2 id="assistant-title">Desk assistant</h2><p>Grounded in your saved deals and posts</p></div><button className="assistant-close" aria-label="Close assistant" title="Close assistant" onClick={() => setOpen(false)}><Icon>×</Icon></button></div>
-      <div className="assistant-disclosure">If AI is configured, your question and workspace summary are sent to OpenAI. Otherwise, answers use workspace data only.</div>
+      <div className="assistant-heading"><span className="assistant-mark"><Icon>✳</Icon></span><div><h2 id="assistant-title">Maya · desk assistant</h2><p>Ask by voice or text about your creator workspace</p></div><button className="assistant-close" aria-label="Close assistant" title="Close assistant" onClick={() => setOpen(false)}><Icon>×</Icon></button></div>
+      <div className="assistant-voice-row"><button className={`assistant-voice-button ${mayaListening ? "is-listening" : ""}`} onClick={toggleMaya} aria-pressed={mayaListening}>{mayaListening ? "Stop Maya" : "Enable Maya voice"}</button><span role="status">{mayaListening ? mayaActive ? 'Maya is active · ask your question' : 'Listening for “Maya”…' : 'Tap to enable wake-word listening'}</span></div>
+      <div className="assistant-disclosure">When enabled, say “Maya” to activate, then ask. Your question and workspace summary go to the configured backend model. Reel figures are saved workspace metrics, not a live Instagram connection; schedule summaries use deal deadlines and workspace actions, not a connected calendar.</div>
       {!answer && <div className="assistant-suggestions" aria-label="Suggested questions">{suggestions.map((item) => <button key={item} onClick={() => ask(item)} disabled={loading}>{item}</button>)}</div>}
       {answer && <div className="assistant-answer" aria-live="polite"><div className="assistant-answer-label"><span>{answer.source === "ai" ? "AI suggestion" : "Workspace insight"}</span>{answer.source !== "ai" && <span>Verified data</span>}</div><p>{answer.answer}</p><div className="assistant-suggestions assistant-followups">{(answer.suggestions || suggestions).map((item) => <button key={item} onClick={() => ask(item)} disabled={loading}>{item}</button>)}</div></div>}
       {error && <div className="assistant-error" role="alert">{error} <button onClick={() => ask()}>Try again</button></div>}
       {loading && <div className="assistant-loading" role="status"><span className="spinner spinner-small" /> Checking your workspace…</div>}
-      <form className="assistant-form" onSubmit={(event) => { event.preventDefault(); ask(); }}><label className="sr-only" htmlFor="assistant-question">Ask about your deals, rates, or content</label><input id="assistant-question" ref={inputRef} value={question} maxLength={500} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about your desk…" /><button className="assistant-send" disabled={loading || !question.trim()} aria-label="Ask assistant" title="Ask assistant"><Icon>→</Icon></button></form>
+      <form className="assistant-form" onSubmit={(event) => { event.preventDefault(); ask(); }}><label className="sr-only" htmlFor="assistant-question">Ask about your deals, rates, or content</label><input id="assistant-question" ref={inputRef} value={question} maxLength={500} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask Maya about your desk…" /><button className="assistant-send" disabled={loading || !question.trim()} aria-label="Ask assistant" title="Ask assistant"><Icon>→</Icon></button></form>
     </section>}
-    <button ref={launcherRef} className={`assistant-launcher ${open ? "is-open" : ""}`} aria-expanded={open} aria-controls={open ? "desk-assistant-panel" : undefined} onClick={() => setOpen((value) => !value)}><Icon>✳</Icon><span>{open ? "Close" : "Ask your desk"}</span></button>
+    <button ref={launcherRef} className={`assistant-launcher ${open ? "is-open" : ""}`} aria-label={open ? "Close Maya desk assistant" : mayaListening ? "Maya is listening" : "Open Maya desk assistant"} title={mayaListening ? "Maya is listening" : "Open Maya desk assistant"} aria-expanded={open} aria-controls={open ? "desk-assistant-panel" : undefined} onClick={() => setOpen((value) => !value)}><Icon>{open ? "×" : "✳"}</Icon><span>{open ? "Close" : mayaListening ? "Listening for Maya" : "Ask your desk"}</span></button>
   </>;
 }
 
 function Today({ onOpen, onNavigate }) {
   const [data, setData] = useState(null);
   const [deals, setDeals] = useState([]);
+  const [content, setContent] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
     Promise.all([api.today(), api.deals()]).then(([today, result]) => { setData(today); setDeals(result.deals); }).catch((reason) => setError(reason.message));
+    api.content().then(setContent).catch(() => setContent(null));
   }, []);
   if (error) return <ErrorMessage error={error} />;
   if (!data) return <Loading />;
@@ -194,12 +304,36 @@ function Today({ onOpen, onNavigate }) {
     }
     return index === 2 ? "/content" : null;
   };
+  const reels = (content?.posts || []).filter((post) => post.type?.toLowerCase() === "reel");
+  const averageReach = reels.length ? Math.round(reels.reduce((sum, post) => sum + (Number(post.reach) || 0), 0) / reels.length) : 0;
+  const averageSaves = reels.length ? Math.round(reels.reduce((sum, post) => sum + (Number(post.saves) || 0), 0) / reels.length) : 0;
+  const topReel = [...reels].sort((a, b) => (Number(b.reach) || 0) - (Number(a.reach) || 0))[0];
+  const pulsePosts = [...reels].sort((a, b) => (Number(b.reach) || 0) - (Number(a.reach) || 0)).slice(0, 4);
+  const maxReach = Math.max(1, ...pulsePosts.map((post) => Number(post.reach) || 0));
+  const upcomingDeals = deals.filter((deal) => deal.deadline && !/no deadline|unclear/i.test(deal.deadline)).slice(0, 3);
   return <>
       <PageTitle eyebrow={`${new Intl.DateTimeFormat("en-IN", { weekday: "long" }).format(new Date()).toUpperCase()} · YOUR CREATOR DESK`} title="A good day to make moves." subtitle="Your brand partnerships, all in one place." action={<button className="primary-button" onClick={() => onNavigate("/inbox")}><span>＋</span> Parse an email</button>} />
     <section className="stats-grid" aria-label="Deal counts">{statuses.map((status) => <div className="stat-card" key={status}><div className="stat-label">{statusLabels[status]}</div><div className="stat-value">{counts[status] || 0}</div><span className={`stat-mark mark-${status}`} /></div>)}</section>
     <section className="today-layout"><div className="panel actions-panel"><div className="section-heading"><div><div className="eyebrow">YOUR NEXT STEPS</div><h2>Today, at a glance</h2></div><span className="subtle-count">{data.actions.length} actions</span></div><div className="action-list">{data.actions.map((action, index) => { const destination = actionLink(action, index); return <button key={`${action}-${index}`} className={`action-row ${destination ? "action-clickable" : ""}`} disabled={!destination} onClick={() => { if (destination === "/content") onNavigate(destination); else if (destination) onOpen(destination); }}><span className={`action-number action-number-${index}`}>{String(index + 1).padStart(2, "0")}</span><span className="action-copy">{action}<small>{index === 0 ? "A reply keeps the conversation moving" : index === 1 ? "Close the loop on an outstanding payment" : "See the posts behind this insight"}</small></span><span className="action-arrow">{destination ? "↗" : "✓"}</span></button>; })}</div></div>
       <div className="panel focus-panel"><div className="eyebrow">IN FOCUS</div><div className="focus-art"><span className="orbit orbit-one"/><span className="orbit orbit-two"/><span className="focus-star">✳</span><span className="focus-spark focus-spark-a">✦</span><span className="focus-spark focus-spark-b">✧</span></div><h3>Built around your<br /><em>best work.</em></h3><p>See what resonates, know your worth, and make every partnership count.</p><button className="focus-link" onClick={() => onNavigate("/content")}>Explore your content <span>→</span></button></div></section>
     <section className="recent-section"><div className="section-heading"><div><div className="eyebrow">KEEP THINGS MOVING</div><h2>Recent deals</h2></div><button type="button" className="text-link" onClick={() => onNavigate("/deals")}>View all <span>→</span></button></div><RecentDeals deals={deals.slice(0, 3)} onOpen={onOpen} onNavigate={onNavigate} /></section>
+    <section className="dashboard-insights" aria-label="Creator performance and schedule">
+      <article className="panel pulse-panel">
+        <div className="section-heading"><div><div className="eyebrow">CREATOR PULSE</div><h2>What’s resonating</h2></div><button type="button" className="text-link" onClick={() => onNavigate("/content")}>View insights <span>→</span></button></div>
+        {content ? <>
+          <div className="pulse-metrics"><div><span>Average Reel reach</span><strong>{number(averageReach)}</strong></div><div><span>Average saves</span><strong>{number(averageSaves)}</strong></div><div><span>Reels tracked</span><strong>{number(reels.length)}</strong></div></div>
+          {pulsePosts.length ? <div className="pulse-chart" role="img" aria-label={`Top ${pulsePosts.length} Reels by saved reach`}>
+            {pulsePosts.map((post) => <div className="pulse-bar-row" key={post.id || post.title}><span title={post.title}>{post.title}</span><div className="pulse-bar-track"><i style={{ width: `${Math.max(6, Math.round(((Number(post.reach) || 0) / maxReach) * 100))}%` }} /></div><strong>{number(post.reach)}</strong></div>)}
+          </div> : <p className="pulse-empty">Add Reels to your content library to see performance here.</p>}
+          <p className="data-source-note"><span>i</span> Saved demo metrics · Instagram isn’t connected</p>
+        </> : <div className="pulse-skeleton" aria-label="Loading creator insights"><span /><span /><span /></div>}
+      </article>
+      <article className="panel schedule-panel">
+        <div className="section-heading"><div><div className="eyebrow">ON YOUR RADAR</div><h2>Deal deadlines</h2></div><span className="subtle-count">Saved in your desk</span></div>
+        {upcomingDeals.length ? <div className="deadline-list">{upcomingDeals.map((deal, index) => <button type="button" className="deadline-row" key={deal.id} onClick={() => onOpen(deal.id)}><span className={`deadline-icon deadline-icon-${index}`}>◷</span><span className="deadline-copy"><strong>{deal.brand}</strong><small>{deal.deadline}</small></span><StatusPill status={deal.status} /><Icon>↗</Icon></button>)}</div> : <div className="deadline-empty"><span className="deadline-empty-icon">✓</span><div><strong>You’re clear for now</strong><small>No deal deadlines are saved yet.</small></div></div>}
+        <p className="data-source-note"><span>i</span> Deal notes only · No calendar connected</p>
+      </article>
+    </section>
   </>;
 }
 
@@ -213,6 +347,9 @@ function Inbox({ onOpen }) {
   const [rawEmail, setRawEmail] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [draftingReply, setDraftingReply] = useState(false);
+  const [replyDraft, setReplyDraft] = useState(null);
+  const [replyCopied, setReplyCopied] = useState(false);
   const [error, setError] = useState("");
   const [gmailStatus, setGmailStatus] = useState(null);
   const [gmailMessages, setGmailMessages] = useState([]);
@@ -259,9 +396,26 @@ function Inbox({ onOpen }) {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
   async function parse(event) {
-    event.preventDefault(); setError(""); setResult(null); setLoading(true);
+    event.preventDefault(); setError(""); setResult(null); setReplyDraft(null); setLoading(true);
     try { setResult(await api.parseEmail(rawEmail)); } catch (reason) { setError(reason.message); }
     finally { setLoading(false); }
+  }
+  async function demoEmail(event) {
+    event.preventDefault(); setError(""); setResult(null); setReplyDraft(null); setLoading(true);
+    try {
+      const parsed = await api.parseEmail(rawEmail);
+      setResult(parsed);
+      setDraftingReply(true);
+      const intent = parsed.deal.intent === "gifted" ? "decline" : "counter";
+      setReplyDraft(await api.reply(parsed.deal.id, intent));
+    } catch (reason) { setError(reason.message); }
+    finally { setLoading(false); setDraftingReply(false); }
+  }
+  async function copyInboxReply() {
+    try {
+      await navigator.clipboard.writeText(`${replyDraft.subject}\n\n${replyDraft.body}`);
+      setReplyCopied(true); window.setTimeout(() => setReplyCopied(false), 1800);
+    } catch { setError("Could not copy the reply. Select the text and copy it instead."); }
   }
   async function disconnectGmail() {
     if (!window.confirm("Disconnect Gmail and remove its cached messages from CollabDesk?")) return;
@@ -290,9 +444,9 @@ function Inbox({ onOpen }) {
       {gmailError && <p className="gmail-notice" role="status">{gmailError}</p>}
       {gmailStatus?.connected && <div className="gmail-message-list" aria-live="polite">{gmailMessages.length ? gmailMessages.map((message) => <article className="gmail-message" key={message.gmail_message_id}><div className="gmail-message-copy"><strong>{message.subject}</strong><span>{message.from_name || message.from_email} · {new Date(message.internal_date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span><small>{message.snippet}</small></div><button className="text-link gmail-use-message" disabled={loadingMessage === message.gmail_message_id} onClick={() => useGmailMessage(message)}>{loadingMessage === message.gmail_message_id ? "Loading…" : "Use email"} <span>→</span></button></article>) : <p className="gmail-empty">{gmailError ? "Waiting for new mail…" : "Loading recent inbox messages…"}</p>}</div>}
     </section>
-    <div className="inbox-layout"><form className="panel email-panel" onSubmit={parse}><div className="section-heading"><div><div className="eyebrow">START WITH A SAMPLE</div><h2>Try a familiar email</h2></div><span className="sample-count">{samples.length} samples</span></div><div className="sample-list">{samples.map((sample) => <button className={`sample-button ${rawEmail === sample.rawEmail ? "selected" : ""}`} type="button" key={sample.id} onClick={() => { setRawEmail(sample.rawEmail); setResult(null); setError(""); }}><span className="sample-letter">{sample.label.slice(0, 1)}</span><span>{sample.label}</span><Icon>↘</Icon></button>)}</div><label className="field-label" htmlFor="raw-email">Or paste an email</label><textarea id="raw-email" value={rawEmail} onChange={(event) => { setRawEmail(event.target.value); setResult(null); }} placeholder="Paste the brand's email here…" rows={9} required /><p className="privacy-disclosure">When AI is configured, this email text is sent to OpenAI for extraction. Otherwise, CollabDesk uses its offline parser.</p><div className="form-footer"><span className="privacy-note"><Icon>✳</Icon> Your rate is always your decision.</span><button className="primary-button" disabled={loading || !rawEmail.trim()}>{loading ? <><span className="spinner spinner-small" /> Reading email…</> : <>Parse email <span>→</span></>}</button></div><ErrorMessage error={error} /></form>
+    <div className="inbox-layout"><form className="panel email-panel" onSubmit={parse}><div className="section-heading"><div><div className="eyebrow">START WITH A SAMPLE</div><h2>Try a familiar email</h2></div><span className="sample-count">{samples.length} samples</span></div><div className="sample-list">{samples.map((sample) => <button className={`sample-button ${rawEmail === sample.rawEmail ? "selected" : ""}`} type="button" key={sample.id} onClick={() => { setRawEmail(sample.rawEmail); setResult(null); setReplyDraft(null); setError(""); }}><span className="sample-letter">{sample.label.slice(0, 1)}</span><span>{sample.label}</span><Icon>↘</Icon></button>)}</div><label className="field-label" htmlFor="raw-email">Or paste an email</label><textarea id="raw-email" value={rawEmail} onChange={(event) => { setRawEmail(event.target.value); setResult(null); setReplyDraft(null); }} placeholder="Paste the brand's email here…" rows={9} required /><p className="privacy-disclosure">When AI is configured, this email text is sent to OpenAI for extraction. Otherwise, CollabDesk uses its offline parser.</p><div className="form-footer"><span className="privacy-note"><Icon>✳</Icon> Your rate is always your decision.</span><div className="button-row"><button type="submit" className="secondary-button" disabled={loading || !rawEmail.trim()}>Parse email</button><button type="button" className="primary-button" disabled={loading || !rawEmail.trim()} onClick={demoEmail}>{loading ? <><span className="spinner spinner-small" /> {draftingReply ? "Drafting reply…" : "Reading email…"}</> : <>Demo: draft a reply <span>→</span></>}</button></div></div><ErrorMessage error={error} /></form>
       <aside className="inbox-aside"><div className="panel inbox-tip"><div className="tip-icon">✦</div><div className="eyebrow">YOUR DESK, YOUR TERMS</div><h3>Know what’s in<br />the fine print.</h3><p>CollabDesk pulls out the budget, deliverables and usage window, then checks the offer against your own rates.</p><div className="tip-rule"><span>01</span> Your rate card sets the fee</div><div className="tip-rule"><span>02</span> You choose what to send</div></div>
-      {result && <div className="result-card"><div className="result-top"><span className="result-icon">✓</span><span>Deal found</span>{result.quote?.lowball && <span className="lowball"><i />Lowball</span>}</div><h3>{result.deal.brand}</h3><div className="result-budget">{money(result.deal.budgetInr)} <span>· {result.deal.format}</span></div><div className="result-lines"><div><span>Deliverables</span><strong>{result.deal.deliverables.join(" + ")}</strong></div><div><span>Suggested fee</span><strong className="accent-text">{money(result.quote?.suggestedInr)}</strong></div><div className="result-summary">{result.deal.summary}</div></div>{result.source === "fallback" && <p className="offline-note">Shown from offline parser.</p>}<button className="secondary-button full-button" onClick={() => onOpen(result.deal.id)}>Open deal <span>↗</span></button></div>}
+      {result && <div className="result-card"><div className="result-top"><span className="result-icon">✓</span><span>Deal found</span>{result.quote?.lowball && <span className="lowball"><i />Lowball</span>}</div><h3>{result.deal.brand}</h3><div className="result-budget">{money(result.deal.budgetInr)} <span>· {result.deal.format}</span></div><div className="result-lines"><div><span>Deliverables</span><strong>{result.deal.deliverables.join(" + ")}</strong></div><div><span>Suggested fee</span><strong className="accent-text">{money(result.quote?.suggestedInr)}</strong></div><div className="result-summary">{result.deal.summary}</div></div>{result.source === "fallback" && <p className="offline-note">Shown from offline parser.</p>}{replyDraft && <div className="reply-editor inbox-reply-demo"><div className="editor-top"><span><span className="editor-dot" /> Reply draft ready</span><small>{replyDraft.source === "fallback" ? "Offline draft" : "AI-assisted draft"}</small></div><label className="field-label" htmlFor="inbox-reply-subject">Subject</label><input id="inbox-reply-subject" value={replyDraft.subject} onChange={(event) => setReplyDraft({ ...replyDraft, subject: event.target.value })} /><label className="field-label" htmlFor="inbox-reply-body">Message</label><textarea id="inbox-reply-body" rows={6} value={replyDraft.body} onChange={(event) => setReplyDraft({ ...replyDraft, body: event.target.value })} /><button className="secondary-button full-button" onClick={copyInboxReply}>{replyCopied ? "Copied ✓" : "Copy reply"}</button></div>}{draftingReply && <p role="status">Writing a reply from this email…</p>}<button className="secondary-button full-button" onClick={() => onOpen(result.deal.id)}>Open deal <span>↗</span></button></div>}
       </aside></div>
   </>;
 }

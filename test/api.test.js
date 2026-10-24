@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
+import { isUsableReplyDraft, replyPrompt } from "../server/prompts.js";
 
 const directory = await mkdtemp(join(tmpdir(), "collabdesk-test-"));
 const testDatabasePath = join(directory, "db.json");
@@ -86,6 +87,37 @@ test("reply drafting, rates, content insights, and daily actions work", async ()
   assert.doesNotMatch(content.payload.insight, /commute/i);
   assert.equal((await json("/api/today")).response.status, 200);
   assert.equal((await json("/api/deals/d-seed-bakery/reply", "POST", { intent: "send" })).response.status, 400);
+});
+
+test("counter reply phrasing rejects contradictory or incomplete AI drafts", () => {
+  const deal = {
+    brand: "Vanaz Bakehouse", budgetInr: 18000, deliverables: ["1 reel", "3 stories"],
+    deadline: "in 10 days", format: "reel", usageDays: 30, summary: "Paid bakery reel plus stories.",
+  };
+  const prompt = replyPrompt("counter", deal, 15000);
+  assert.match(prompt, /This is a negotiation, not a rejection/);
+  assert.match(prompt, /₹15,000/);
+  assert.equal(isUsableReplyDraft({
+    subject: "Re: Vanaz Bakehouse collaboration",
+    body: "Hi,\n\nThanks for the brief. I’d be happy to create 1 reel and 3 stories for ₹15,000, including 30 days of usage. Would that work for your budget?\n\nBest,\nAanya",
+  }, "counter", 15000, deal), true);
+  assert.equal(isUsableReplyDraft({
+    subject: "Counter offer",
+    body: "I regret to decline this offer. My fee is ₹15000.",
+  }, "counter", 15000, deal), false);
+  assert.equal(isUsableReplyDraft({
+    subject: "Accepted",
+    body: "I am happy to accept the offer for 1 reel and 3 stories by in 10 days for ₹15,000, including 30 days of usage.",
+  }, "accept", 15000, deal), true);
+  assert.equal(isUsableReplyDraft({
+    subject: "Declining",
+    body: "Thank you, I am happy to offer these deliverables for ₹15,000. Would that work for your budget?",
+  }, "decline", 15000, deal), false);
+  assert.equal(isUsableReplyDraft({
+    subject: "A few details",
+    body: "Could you share the product, posting date, and requested usage period?",
+  }, "ask_brief", 15000, deal), true);
+  assert.equal(isUsableReplyDraft({ subject: " ", body: " " }, "accept", 15000, deal), false);
 });
 
 test("reel script starter supports all goals and durations with contiguous scene timings", async () => {

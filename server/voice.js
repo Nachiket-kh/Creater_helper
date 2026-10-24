@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import twilio from 'twilio';
-import { askJSON } from './llm.js';
+import { askJSON, isAIConfigured } from './llm.js';
 import { voiceAgentPrompt } from './prompts.js';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
@@ -12,7 +12,8 @@ export function voiceConfiguration() {
   return {
     twilioConfigured: Boolean(process.env.TWILIO_AUTH_TOKEN),
     transferConfigured: Boolean(process.env.VOICE_TRANSFER_NUMBER),
-    aiConfigured: Boolean(process.env.OPENAI_API_KEY || (process.env.OLLAMA_CHAT_URL && !(process.env.VERCEL && /localhost|127\.0\.0\.1/i.test(process.env.OLLAMA_CHAT_URL)))),
+    aiConfigured: isAIConfigured(),
+    browserDemoEnabled: process.env.VOICE_DEMO_ENABLED === 'true' && !process.env.VERCEL,
     webhookBaseUrl: process.env.VOICE_WEBHOOK_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
   };
 }
@@ -94,7 +95,7 @@ function fallbackReply(text, history) {
   return { reply: 'I’m here to help with creator collaborations and session support. What would you like to work through?', intent: 'unclear', transfer: false };
 }
 
-async function getVoiceReply(text, history) {
+export async function getVoiceReply(text, history = []) {
   try {
     const voiceTimeoutMs = Number(process.env.VOICE_AI_TIMEOUT_MS) > 0 ? Number(process.env.VOICE_AI_TIMEOUT_MS) : 7000;
     const result = await askJSON(voiceAgentPrompt(history, text), { timeoutMs: Math.min(voiceTimeoutMs, 10000), maxTokens: 180 });

@@ -15,7 +15,6 @@ export function routeFor(path = "") {
     if (normalized === "/content") return { page: "content" };
     if (normalized === "/kit") return { page: "kit" };
     if (normalized === "/voice") return { page: "voice" };
-    if (normalized === "/ui-kit") return { page: "ui-kit" };
     return { page: "not-found" };
   } catch {
     return { page: "not-found" };

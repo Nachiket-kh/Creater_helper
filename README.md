@@ -15,6 +15,8 @@ Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the API at `http:
 
 To enable model-assisted email parsing and reply drafting, set `OPENAI_API_KEY` in the server process environment. The app uses `gpt-4o-mini`; when the key is missing or the provider fails, the API identifies deterministic fallback responses with `source: "fallback"`.
 
+The Content page also includes a reel-script writer. It creates three hooks, a timed scene plan, a caption, and a CTA using the creator profile and saved-post data. Without an AI provider, it returns a deterministic starter with `source: "starter"`; seeded social metrics are examples, not connected analytics.
+
 When the key is configured, email parsing sends the pasted email text to OpenAI. Reply drafting sends saved deal details, not the original email body. The Inbox and deal reply screens disclose this before the user runs those actions.
 
 The compact **Ask your desk** assistant answers questions about rates, deal follow-ups, and content performance using saved workspace data. Without an OpenAI key, it returns clearly labeled deterministic workspace insights. When configured, it sends the question and a bounded summary of creator rates, deals, and post metrics to OpenAI; raw email text is not included. The assistant never sends replies or changes deal data.
@@ -63,6 +65,7 @@ The tests use a temporary copy of the seed data and do not alter the checked-in 
 | POST | `/api/deals/:id/rate` | Recalculate a deal quote |
 | POST | `/api/deals/:id/reply` | Draft an accept, counter, decline, or clarification reply |
 | GET | `/api/content` | Read seeded demo posts and reach averages |
+| POST | `/api/content/reel-script` | Create a 15/30/45/60-second reel script and hook options |
 | GET | `/api/today` | Read action suggestions and deal counts |
 | GET | `/api/samples` | Read sample collaboration emails |
 | POST | `/api/assistant` | Answer a bounded question using workspace facts; limited to 8 requests per minute per client key |
@@ -74,7 +77,7 @@ The tests use a temporary copy of the seed data and do not alter the checked-in 
 | POST | `/api/gmail/webhook` | Verify Pub/Sub OIDC and sync Gmail history changes |
 | GET | `/api/gmail/renew` | Renew Gmail watch and catch up changes; called daily by Vercel Cron |
 
-The app has a single-owner Google OAuth session in production, but no multi-user workspace boundaries, real social metrics, publishing, invoicing, or voice/audio routes. Local demo mode is unauthenticated and should remain bound to loopback. Values in `server/data/db.json` are demo fixtures, not connected platform analytics.
+The app has a single-owner Google OAuth session in production, but no multi-user workspace boundaries, real social metrics, publishing, or invoicing. The voice assistant has Twilio webhook routes but requires account configuration before live calls. Local demo mode is unauthenticated and should remain bound to loopback. Values in `server/data/db.json` are demo fixtures, not connected platform analytics.
 
 ### Connect Gmail for incoming brand emails
 
@@ -93,8 +96,12 @@ This checkout is a **single-creator workspace**: set `GMAIL_ALLOWED_EMAIL` to th
 
 Gmail push notifications carry a history cursor, not the email body. CollabDesk uses Gmail's history API to fetch the actual changes. Google may delay or drop a notification, so scheduled watch renewal also performs a catch-up sync. Google's `gmail.readonly` scope is restricted and requires OAuth app verification for public use; storing or transmitting restricted-scope data can require a security assessment. Review [Gmail scope requirements](https://developers.google.com/workspace/gmail/api/auth/scopes), [server-side OAuth](https://developers.google.com/workspace/gmail/api/auth/web-server), and [push notification setup](https://developers.google.com/workspace/gmail/api/guides/push) before inviting other users.
 
+### Configure a free-tier AI provider
+
+For local or hackathon demos, create a Gemini API key in [Google AI Studio](https://aistudio.google.com/app/apikey) and set `GEMINI_API_KEY` in the backend environment. The app uses `gemini-3.1-flash-lite` by default; set `GEMINI_MODEL` to override it. Keep the key server-side and use sample emails with the Gemini free tier, whose terms may allow submitted content to be used to improve Google products. Gemini is selected ahead of OpenAI or Ollama when its key is configured. Free-tier availability and request limits depend on model and account.
+
 ### Voice assistant
 
 The Voice assistant page shows the incoming Twilio webhook URL and reports whether signature validation, human transfer, and an AI provider are configured. Set `TWILIO_AUTH_TOKEN` and `VOICE_TRANSFER_NUMBER` as private Vercel Production variables, then point the Twilio number's incoming call webhook to `https://YOUR_APP_DOMAIN/api/voice/incoming` with HTTP POST. `VOICE_WEBHOOK_BASE_URL` should use the app's HTTPS origin. Without an AI provider, calls use the built-in short response fallback. For AI responses, configure `OPENAI_API_KEY` or an internet-reachable Ollama-compatible `OLLAMA_CHAT_URL`; set `OLLAMA_API_KEY` if that endpoint requires a bearer token. `localhost` is not reachable from Vercel. The webhook verifies Twilio signatures and rejects requests until the auth token is configured.
 
-For local AI voice testing, set `OLLAMA_CHAT_URL=http://127.0.0.1:11434/api/chat` and `OLLAMA_MODEL=qwen3.5:4b` in a private `.env` file, then start the app with `npm run dev`. The local voice route uses Ollama's non-thinking JSON mode with a short output limit so phone replies return quickly. A local model alone cannot receive phone calls; Twilio must reach the app through a public HTTPS webhook (for local tests, use a secured tunnel and set `VOICE_WEBHOOK_BASE_URL` to its exact HTTPS URL).
+For the hackathon browser demo, set `OLLAMA_CHAT_URL=http://127.0.0.1:11434/api/chat`, `OLLAMA_MODEL=qwen2.5vl:3b`, and `VOICE_DEMO_ENABLED=true` in a private `.env` file, then start the app with `npm run dev`. Use the Voice assistant page to talk or type; the backend sends each turn to local Ollama and the browser speaks the reply. This demo endpoint is disabled on Vercel. A local model alone cannot receive phone calls; phone calls still need a telephony provider and a public HTTPS webhook.

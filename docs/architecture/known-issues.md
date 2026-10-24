@@ -1,5 +1,15 @@
 # Known issues, confirmed bugs, and unresolved risks
 
+## Current status — 2026-10-24
+
+The latest Vercel deployment records are in `ERROR` state even though the checked-out project's `npm test` and `npm run build` both pass. Vercel's deployment detail/log APIs returned 404 in this session, so the cause still needs inspection in Vercel's deployment UI. The most recent ready production deployment in the visible list used the older `22cb0d6` commit.
+
+The local app runs with demo JSON data because no `.env` file is present: Gmail status is unconfigured/disconnected, and Twilio, call transfer, and AI provider flags are all false. Supabase and live provider workflows are therefore not verified as connected. The latest `src/pages/*` additions are not imported by `src/App.jsx`; they are alternate screens, not currently active features.
+
+---
+
+## Historical notes — 2026-10-23
+
 ## Confirmed fixes in this audit
 
 1. **Unsupported paths rendered Today.** `routeFor()` previously returned the Today route for every unknown URL. It now returns a dedicated not-found page with navigation back to Today. Evidence: route handling in `src/App.jsx`; production build succeeds.

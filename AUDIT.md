@@ -1,5 +1,33 @@
 # CollabDesk project audit
 
+## Current full-project review — 2026-10-24
+
+The latest GitHub `main` commit was fetched and checked. The production Vercel project lists the deployments for recent commits (`3064586`, `5cfaeca`, and `e0e689f`) as **ERROR**; Vercel's deployment-detail/log endpoints returned 404, so the exact platform-side failure is not available from this connection. Local build and tests pass, which means those results alone do not prove the deployment is healthy.
+
+| User-facing feature | Result | Real limit |
+| --- | --- | --- |
+| Today, Inbox, Deals, deal detail, media kit | Working against the demo API | Single creator and seeded demo workspace; local JSON by default. |
+| Email parsing, rate check, reply drafting | Working with deterministic fallbacks | AI requires a configured provider; reply drafts are copied, not sent or saved. |
+| Reel script writer | Working | 3 hooks, 4 timed scenes, caption, CTA; tests cover 4 durations and all goals. |
+| GitHub Creator Studio | Live public-repository activity verified | Public GitHub only; no publishing. |
+| Gmail | Code implemented, not connected here | Local runtime reports `configured: false`, `connected: false`; Google/Pub/Sub/Supabase/Vercel setup required. |
+| Voice assistant | Code implemented, not live-call ready here | Local runtime reports Twilio, transfer, and AI providers unconfigured. |
+| Supabase | Adapter tested with mocked REST, not live here | No local `.env`; the local server uses JSON file storage. Vercel secret configuration was not readable/verified. |
+| Content metrics | Demo only | Seeded post metrics, not connected social analytics. |
+| New page modules in `src/pages` | Not wired into the active app | `src/App.jsx` still renders its existing inline pages. Their missing API aliases were added, but these duplicate modules are not the live screens. |
+
+### Fixes and checks in this review
+
+- Production API auth is now applied across workspace routes, not Gmail alone; tests cover missing config, missing session, approved account, and a different account.
+- Added missing API aliases and display helpers used by the newly added page modules.
+- `npm test`: 23 passed. `npm run build`: passed. The six added page modules were separately bundled to catch missing imports.
+- The stale local API process was restarted. The app at `http://127.0.0.1:5173` now serves the current source, and the local API smoke checks return successfully.
+- Browser interaction was unavailable in this environment. No real Gmail, Supabase, Twilio, OpenAI, or Vercel deployment request was exercised.
+
+---
+
+## Historical audit notes — 2026-10-23
+
 Audit scope: checked out branch `backend/collabdesk`, repository contents available on 2026-10-23. The Git history shows the branch contains a Node.js 20+ API using Hono, React/Vite dependencies, TypeScript pricing helpers, and JSON seed data. This audit added an optional Supabase Postgres adapter and migration. The checked-out project has no `index.html`, React app entry point, frontend components, Vite config, authentication, or voice-agent files. The `main` branch available locally contains only `README.md`, `src/lib/collab/{engine.ts,types.ts}`, and `src/styles.css`; the voice work was not present in either branch when inspected.
 
 ## Feature inventory
