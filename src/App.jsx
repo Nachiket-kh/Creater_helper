@@ -49,6 +49,23 @@ function ErrorMessage({ error }) {
   return error ? <div className="error-banner" role="alert"><Icon>!</Icon>{error}</div> : null;
 }
 
+function WorkspaceSetup({ onRetry }) {
+  return <section className="workspace-setup" aria-labelledby="workspace-setup-title">
+    <div className="workspace-setup-card">
+      <span className="workspace-setup-mark" aria-hidden="true"><Icon>✳</Icon></span>
+      <div className="eyebrow">WORKSPACE SETUP</div>
+      <h1 id="workspace-setup-title">Finish connecting your creator workspace.</h1>
+      <p className="workspace-setup-copy">The site is online, but its private workspace data stays locked until the production sign-in and storage providers are configured.</p>
+      <div className="workspace-setup-status" role="status"><span className="workspace-setup-status-dot" /> Production setup is incomplete</div>
+      <div className="workspace-setup-actions">
+        <a className="primary-button" href="https://vercel.com/creator-os8/creater_helper/settings/environment-variables" target="_blank" rel="noreferrer">Open Vercel settings <span>↗</span></a>
+        <button type="button" className="secondary-button" onClick={onRetry}>Check again <span>↻</span></button>
+      </div>
+      <p className="workspace-setup-note">After saving the production environment variables, redeploy this project. Your dashboard will load once the API confirms setup is complete.</p>
+    </div>
+  </section>;
+}
+
 function Loading({ label = "Loading your workspace…" }) {
   return <div className="loading"><span className="spinner" />{label}</div>;
 }
@@ -102,6 +119,7 @@ export default function App() {
 
   const openDeal = (id) => navigate(`/deals/${encodeURIComponent(id)}`);
   const reload = () => setRefresh((value) => value + 1);
+  const setupRequired = workspaceError === "Creator workspace sign-in is not configured for this deployment.";
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -109,7 +127,7 @@ export default function App() {
       <div className="creator-mini">
         <div className="avatar">{creator?.name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "AK"}</div>
         <div className="creator-mini-copy"><strong>{creator?.name || "Aanya Kulkarni"}</strong><span>{creator?.handle || "@aanya.eats.pune"}</span></div>
-        <span className="online-dot" title="Workspace online" />
+        <span className={`online-dot ${setupRequired ? "offline" : ""}`} title={setupRequired ? "Workspace setup required" : "Workspace online"} />
       </div>
       <div className="nav-label">WORKSPACE</div>
       <nav className="side-nav" aria-label="Main navigation">
@@ -120,7 +138,8 @@ export default function App() {
 
     <main className="main-area">
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {route.page === "detail" ? "Deal details" : pages.find((page) => page.id === route.page)?.label || "Not found"}</div><div className="topbar-right"><button className="voice-shortcut" onClick={() => navigate("/voice")} aria-label="Open voice assistant">☎ <span>Voice assistant</span></button><span className="today-date">{new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span><button className="icon-button" aria-label="Refresh workspace" title="Refresh workspace" onClick={reload}><Icon>↻</Icon></button><div className="top-avatar" aria-label={creator?.name || "Creator account"}>{creator?.name?.slice(0, 1) || "A"}</div></div></header>
-      <div className="page-content"><ErrorMessage error={workspaceError} />
+      <div className="page-content">{setupRequired ? <WorkspaceSetup onRetry={reload} /> : <>
+        <ErrorMessage error={workspaceError} />
         {route.page === "today" && <Today key={refresh} onOpen={openDeal} onNavigate={navigate} />}
         {route.page === "inbox" && <Inbox key={refresh} onOpen={openDeal} />}
         {route.page === "deals" && <Deals key={refresh} onOpen={openDeal} />}
@@ -129,10 +148,11 @@ export default function App() {
         {route.page === "kit" && <Kit key={refresh} creator={creator} onSaved={(value) => { setCreator(value); setWorkspaceError(""); }} />}
         {route.page === "voice" && <Voice />}
         {route.page === "not-found" && <><PageTitle eyebrow="NOT FOUND" title="This page isn’t here." subtitle="The address may be out of date, or the page may have moved." action={<button className="primary-button" onClick={() => navigate("/")}>Back to Today <span>→</span></button>} /></>}
+      </>}
       </div>
     </main>
     <nav className="mobile-nav" aria-label="Mobile navigation">{pages.map((item) => <a key={item.id} href={item.href} title={item.label} aria-label={item.label} aria-current={route.page === item.id || (item.id === "deals" && route.page === "detail") ? "page" : undefined} className={route.page === item.id || (item.id === "deals" && route.page === "detail") ? "active" : ""} onClick={(event) => { event.preventDefault(); navigate(item.href); }}><Icon>{item.icon}</Icon><span className="sr-only">{item.label}</span></a>)}</nav>
-    <DeskAssistant page={route.page} />
+    {!setupRequired && <DeskAssistant page={route.page} />}
   </div>;
 }
 
