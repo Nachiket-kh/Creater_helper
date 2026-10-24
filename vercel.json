@@ -10,6 +10,7 @@
     { "source": "/deals", "destination": "/index.html" },
     { "source": "/deals/:id", "destination": "/index.html" },
     { "source": "/content", "destination": "/index.html" },
-    { "source": "/kit", "destination": "/index.html" }
+    { "source": "/kit", "destination": "/index.html" },
+    { "source": "/ui-kit", "destination": "/index.html" }
   ]
 }

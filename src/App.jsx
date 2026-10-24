@@ -6,12 +6,13 @@ import Deals from './pages/Deals.jsx';
 import DealDetail from './pages/DealDetail.jsx';
 import Content from './pages/Content.jsx';
 import Kit from './pages/Kit.jsx';
+import UIKitPage from './pages/UIKitPage.jsx';
 
 const todayStamp = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long', month: 'short', day: '2-digit' }).format(new Date()).toUpperCase();
-const nav = [['/', 'Today', '◷'], ['/inbox', 'Inbox', '↙'], ['/deals', 'Deals', '▤'], ['/content', 'Content', '▧'], ['/kit', 'Media kit', '✳']];
+const nav = [['/', 'Today', '◷'], ['/inbox', 'Inbox', '↙'], ['/deals', 'Deals', '▤'], ['/content', 'Content', '▧'], ['/kit', 'Media kit', '✳'], ['/ui-kit', 'UI kit', '◇']];
 function routeFromPath(path) {
   if (path.startsWith('/deals/')) return { page: 'deal', id: decodeURIComponent(path.slice('/deals/'.length)) };
-  return { page: ({ '/inbox': 'inbox', '/deals': 'deals', '/content': 'content', '/kit': 'kit' })[path] || 'today' };
+  return { page: ({ '/inbox': 'inbox', '/deals': 'deals', '/content': 'content', '/kit': 'kit', '/ui-kit': 'ui-kit' })[path] || 'today' };
 }
 export default function App() {
   const [route, setRoute] = useState(() => routeFromPath(location.pathname));
@@ -22,6 +23,7 @@ export default function App() {
     api.creator().then(setCreator).catch((e) => setError(e.message)); return () => window.removeEventListener('popstate', pop);
   }, []);
   const go = (path) => { history.pushState({}, '', path); setRoute(routeFromPath(path)); setError(''); window.scrollTo(0, 0); };
+  if (route.page === 'ui-kit') return <UIKitPage go={go} />;
   const pageName = route.page === 'deal' ? 'Deal detail' : nav.find(([path]) => path === location.pathname)?.[1] || 'Today';
   return <div className="app-shell">
     <aside className="sidebar">

@@ -24,3 +24,18 @@ The frontend runs on port 5173 and the API on port 3001. Data is stored in `serv
 Import the repository root as a Vite project. `vercel.json` sets the install and build commands, publishes `dist`, and routes the app pages to the SPA entry point. API handlers live in `api/` and run as Node.js functions. No API key is required for the offline parser and reply fallback. For live model calls, set `OLLAMA_CHAT_URL` to a publicly reachable Ollama-compatible endpoint; `localhost` on your computer is not reachable by a Vercel function.
 
 The JSON file remains the local demo store. Vercel functions cannot persist writes to the deployment filesystem, so deployed edits are best-effort in function memory and may reset after a cold start. Add a persistent store before using this with real creator data or relying on saved changes across deployments.
+
+## UI component library
+
+Open `/ui-kit` to browse the component showcase. Reusable React primitives are exported from `src/components/ui/index.jsx`: `Button`, `Card` and its header/content/footer parts, `Label`, `Input`, `Textarea`, `Badge`, and `Avatar`. Their styles and design tokens are scoped to `.ui-kit` in `src/components/ui/ui.css`, so they do not change the CollabDesk desk screens.
+
+```jsx
+import { Button, Card, CardContent, CardHeader, CardTitle } from './components/ui/index.jsx';
+
+<Card>
+  <CardHeader><CardTitle>Campaign overview</CardTitle></CardHeader>
+  <CardContent><Button>Save changes</Button></CardContent>
+</Card>
+```
+
+The library uses Indigo 500 and Violet 600 actions, Slate 900 text on white surfaces, 12px corners, medium card elevation, and an 8px spacing scale.
